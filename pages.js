@@ -23,7 +23,7 @@ function weekly() {
     kpi("Weekly average (3 wks)", fmt0(spendOf(all3) / 3), `12-week average ${fmt0(base12)}`),
     kpi("Income (3 wks)", fmt0(inc3), (n => `${n} deposit${n === 1 ? "" : "s"}`)(D.income.filter(t => t.day >= lo3).length)),
     kpi("Net (3 wks)", fmt0(inc3 - spendOf(all3)), !inc3 ? "" : inc3 >= spendOf(all3) ? `${Math.round((inc3 - spendOf(all3)) / inc3 * 100)}% of income kept` : "spent more than came in"),
-    kpi("Card paydowns (3 wks)", fmt0(pay3), "counted once, not in spend")));
+    kpi("Card paydowns (3 wks)", fmt0(pay3), D.unlinked(lo3) > 0 ? `+${fmt0(D.unlinked(lo3))} to cards without detail` : "counted once, not in spend")));
   const g = h("div", { class: "grid" }); page.append(g);
 
   // 1. stacked weeks by category + 12-week average line (single axis)
@@ -144,6 +144,8 @@ function trends() {
     kpi("Avg monthly net", fmt0(avgInc - avgSp), !avgInc ? "" : avgInc >= avgSp ? `${Math.round((avgInc - avgSp) / avgInc * 100)}% savings rate` : "spending exceeds income"),
     kpi(mlabel(last) + " vs average", fmt0(byM[last].tot), delta(byM[last].tot, avgSp, "vs avg")),
     kpi("Month to date", fmt0(mtd), mlabel(D.curMonth))));
+  if (!D.lumps && D.unlinked(lo) > 0) page.append(h("div", { class: "note", style: "margin:-4px 0 12px" },
+    `Note: ${fmt0(D.unlinked(lo))} of card paydowns in this range have no matching card detail, so they are left out of spending. Months before a card's history begins can look low. Tick "Count card paydowns without detail" (top right) to include them as one lump.`));
   const g = h("div", { class: "grid" }); page.append(g);
 
   // 1. combo: stacked categories + income line + 3-mo avg line
@@ -373,9 +375,12 @@ $("#f").addEventListener("submit", async e => {
   let store;
   try { const blob = await fetch("store.enc", { cache: "no-store" }).then(r => r.json()); store = await decrypt(blob, $("#pw").value); }
   catch { $("#err").textContent = "Wrong passphrase, or no data published yet."; return; }
+  try { D.lumps = localStorage.getItem("lumps") === "1"; } catch { D.lumps = false; }
+  $("#lumps").checked = D.lumps;
   buildModel(store); $("#pw").value = ""; $("#lock").hidden = true; $("#app").hidden = false; $("#asof").textContent = "Updated " + D.updated; route();
 });
 window.addEventListener("hashchange", route);
+$("#lumps").addEventListener("change", e => { D.lumps = e.target.checked; try { localStorage.setItem("lumps", D.lumps ? "1" : "0"); } catch { /* private mode */ } buildModel(D.store); route(); });
 $("#lockbtn").addEventListener("click", () => location.reload());
 $("#theme").addEventListener("click", () => { const r = document.documentElement, cur = r.dataset.theme; r.dataset.theme = cur === "dark" ? "light" : cur === "light" ? "" : "dark"; if (!r.dataset.theme) r.removeAttribute("data-theme"); resetTheme(); route(); });
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { resetTheme(); if (!$("#app").hidden) route(); });

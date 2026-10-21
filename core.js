@@ -67,15 +67,20 @@ async function decrypt(blob, pass) {
 }
 
 /* ---------- data model ---------- */
-const D = { accts: {}, txs: [], spend: [], income: [], asOf: 0, months: [] };
+const D = { accts: {}, txs: [], spend: [], income: [], asOf: 0, months: [], lumps: false, store: null };
 const SPEND_KINDS = new Set(["spend", "refund"]);
 function buildModel(store) {
+  D.store = store;
   D.accts = store.accounts;
   D.txs = Object.entries(store.transactions).filter(([, t]) => !t.pending && t.kind).map(([id, t]) => {
     const day = Math.floor(t.posted / 86400);
     return { id, a: t.account, day, ds: isoOf(day), m: isoOf(day).slice(0, 7), amt: t.amount, desc: t.description, v: t.vendor || "Unknown", c: t.cat || "Uncategorized", k: t.kind };
   }).sort((x, y) => y.day - x.day);
-  D.spend = D.txs.filter(t => SPEND_KINDS.has(t.k)); D.spend.forEach(t => { t.s = -t.amt; t.g = catGroup(t.c); });
+  D.spend = D.txs.filter(t => SPEND_KINDS.has(t.k));
+  if (D.lumps) // optional: paydowns to cards with no itemised history count as one lump of spending
+    D.spend = D.spend.concat(D.txs.filter(t => t.k === "card_payment_out_unlinked").map(t => ({ ...t, v: "Card paydown (no detail)", c: "Card spending (no detail)", k: "spend" })));
+  D.spend.sort((a, b) => b.day - a.day); D.spend.forEach(t => { t.s = -t.amt; t.g = catGroup(t.c); });
+  D.unlinked = day0 => -sum(D.txs.filter(t => t.k === "card_payment_out_unlinked" && t.day >= day0), t => t.amt);
   D.income = D.txs.filter(t => t.k === "income");
   const snaps = Object.keys(store.snapshots || {}).sort();
   D.asOf = Math.max(D.txs[0]?.day || 0, snaps.length ? dayNum(snaps[snaps.length - 1]) : 0);

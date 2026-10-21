@@ -48,6 +48,7 @@ nav { display: flex; gap: 4px; flex: 1; }
 nav a { text-decoration: none; padding: 7px 12px; border-radius: 8px; color: var(--ink2); font-weight: 500; }
 nav a:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
 nav a[aria-current="page"] { background: var(--ink); color: var(--surface); }
+.tg { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; } .tg input { padding: 0; }
 .tools { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
 
 button, select, input { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; }
