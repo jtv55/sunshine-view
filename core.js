@@ -30,10 +30,22 @@ const monthShift = (m, k) => { const d = new Date(Date.UTC(+m.slice(0, 4), +m.sl
 let cssCache = null;
 const css = n => { cssCache = cssCache || getComputedStyle(document.documentElement); return cssCache.getPropertyValue(n).trim(); };
 function resetTheme() { cssCache = null; }
-const CAT_ORDER = ["Housing", "Groceries", "Dining", "Shopping", "Transport", "Bills & Utilities", "Subscriptions", "Health"];
+/* The palette has 8 category hues. They go to the 8 categories you actually spend the most on (so "Other" stays small),
+   in a fixed preference order so a category keeps its color. Everything else folds into gray "Other". */
+const PREF = ["Housing", "Groceries", "Dining", "Shopping", "Transport", "Bills & Utilities", "Subscriptions", "Health", "Education", "Travel", "Home",
+  "Entertainment", "Personal Care", "Fees & Interest", "Pets", "Business", "Cash & ATM", "Gifts & Charity", "P2P", "Card spending (no detail)"];
+let CAT_ORDER = PREF.slice(0, 8), GROUPS = [...CAT_ORDER, "Other"], OTHER_CATS = [];
 const catGroup = c => CAT_ORDER.includes(c) ? c : "Other";
 const catColor = c => { const i = CAT_ORDER.indexOf(c); return i < 0 ? css("--other") : css("--s" + (i + 1)); };
-const GROUPS = [...CAT_ORDER, "Other"];
+function pickCats(spendRows) {
+  const tot = new Map();
+  spendRows.forEach(t => tot.set(t.c, (tot.get(t.c) || 0) + (-t.amt)));
+  const ranked = [...tot].filter(([c, v]) => v > 0 && c !== "Uncategorized").sort((a, b) => b[1] - a[1]);
+  const top = new Set(ranked.slice(0, 8).map(x => x[0]));
+  CAT_ORDER = [...PREF.filter(c => top.has(c)), ...ranked.map(x => x[0]).filter(c => top.has(c) && !PREF.includes(c))];
+  GROUPS = [...CAT_ORDER, "Other"];
+  OTHER_CATS = ranked.slice(8).map(x => x[0]).concat(tot.has("Uncategorized") ? ["Uncategorized"] : []);
+}
 function mix(a, b, t) { // blend hex a toward hex b by t (0..1)
   const p = x => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16));
   const A = p(a), B = p(b);
@@ -79,6 +91,7 @@ function buildModel(store) {
   D.spend = D.txs.filter(t => SPEND_KINDS.has(t.k));
   if (D.lumps) // optional: paydowns to cards with no itemised history count as one lump of spending
     D.spend = D.spend.concat(D.txs.filter(t => t.k === "card_payment_out_unlinked").map(t => ({ ...t, v: "Card paydown (no detail)", c: "Card spending (no detail)", k: "spend" })));
+  pickCats(D.spend);
   D.spend.sort((a, b) => b.day - a.day); D.spend.forEach(t => { t.s = -t.amt; t.g = catGroup(t.c); });
   D.unlinked = day0 => -sum(D.txs.filter(t => t.k === "card_payment_out_unlinked" && t.day >= day0), t => t.amt);
   D.income = D.txs.filter(t => t.k === "income");
@@ -129,7 +142,9 @@ function tableEl(cols, rows, num = []) {
   return t;
 }
 function catLegend(cats = GROUPS) {
-  return h("div", { class: "legend" }, cats.map(c => h("span", { class: "chip" }, h("i", { class: "dot", style: `background:${catColor(c)}` }), c)));
+  const items = cats.map(c => h("span", { class: "chip" }, h("i", { class: "dot", style: `background:${catColor(c)}` }), c));
+  if (cats.includes("Other") && OTHER_CATS.length) items.push(h("span", { class: "muted" }, "Other = " + OTHER_CATS.slice(0, 6).join(", ") + (OTHER_CATS.length > 6 ? ", ..." : "")));
+  return h("div", { class: "legend" }, items);
 }
 function kpi(label, value, detail, hero) {
   return h("div", { class: "kpi" + (hero ? " hero" : "") }, h("div", { class: "l" }, label), h("div", { class: "v" }, value), h("div", { class: "d" }, detail || " "));

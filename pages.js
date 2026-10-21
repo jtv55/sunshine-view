@@ -239,7 +239,7 @@ function recurring() {
   for (const [v, ts0] of groupBy(D.spend.filter(t => t.amt < 0), t => t.v)) {
     const ts = ts0.sort((a, b) => a.day - b.day); if (ts.length < 3) continue;
     const gaps = ts.slice(1).map((t, i) => t.day - ts[i].day), mg = median(gaps), amts = ts.map(t => t.s), typ = median(amts);
-    const tol = ts[0].g === "Bills & Utilities" ? .35 : .12, stable = median(amts.map(a => Math.abs(a - typ))) <= tol * typ;
+    const tol = ts[0].c === "Bills & Utilities" ? .35 : .12, stable = median(amts.map(a => Math.abs(a - typ))) <= tol * typ;
     const cad = mg >= 26 && mg <= 35 ? ["Monthly", 12] : mg >= 85 && mg <= 95 ? ["Quarterly", 4] : mg >= 350 && mg <= 380 ? ["Annual", 1] : mg >= 12 && mg <= 16 ? ["Biweekly", 26] : null;
     if (!cad || !stable) continue;
     const lastAmt = ts[ts.length - 1].s, before = median(amts.slice(0, -1));
@@ -253,14 +253,14 @@ function insights() {
   const page = $("#page"), avail = Math.max(1, Math.floor((D.asOf - D.firstDay) / 30.4)), N = Math.min(12, Math.max(3, avail));
   const months = completeMonths(N).filter(m => m >= isoOf(D.firstDay).slice(0, 7)), M = months.length, lo = dayNum(months[0] + "-01");
   const rows = D.spend.filter(t => t.day >= lo && t.m <= months[M - 1]), ann = f => spendOf(rows.filter(f)) / M * 12;
-  const rec = recurring(), recNonEss = rec.filter(r => ["Subscriptions", "Entertainment", "Education", "Personal Care"].includes(r.c) || r.g === "Subscriptions");
-  const subsBase = Math.max(ann(t => t.g === "Subscriptions"), sum(recNonEss, r => r.annual));
+  const rec = recurring(), recNonEss = rec.filter(r => ["Subscriptions", "Entertainment", "Education", "Personal Care"].includes(r.c) || r.c === "Subscriptions");
+  const subsBase = Math.max(ann(t => t.c === "Subscriptions"), sum(recNonEss, r => r.annual));
   const levers = [
     { k: "subs", name: "Subscriptions and recurring extras", base: subsBase, pct: 20, max: 60, how: "cancel or rotate services you barely use" },
-    { k: "din", name: "Dining and delivery", base: ann(t => t.g === "Dining"), pct: 15, max: 60, how: "cook or order in a little less" },
-    { k: "shp", name: "Shopping", base: ann(t => t.g === "Shopping"), pct: 15, max: 60, how: "add a 48-hour wait on non-essentials" },
-    { k: "trn", name: "Transport (fuel, rideshare, parking)", base: ann(t => t.g === "Transport"), pct: 10, max: 50, how: "bundle trips and avoid surge rides" },
-    { k: "bil", name: "Bills and utilities", base: ann(t => t.g === "Bills & Utilities"), pct: 8, max: 30, how: "renegotiate phone, internet and insurance annually" },
+    { k: "din", name: "Dining and delivery", base: ann(t => t.c === "Dining"), pct: 15, max: 60, how: "cook or order in a little less" },
+    { k: "shp", name: "Shopping", base: ann(t => t.c === "Shopping"), pct: 15, max: 60, how: "add a 48-hour wait on non-essentials" },
+    { k: "trn", name: "Transport (fuel, rideshare, parking)", base: ann(t => t.c === "Transport"), pct: 10, max: 50, how: "bundle trips and avoid surge rides" },
+    { k: "bil", name: "Bills and utilities", base: ann(t => t.c === "Bills & Utilities"), pct: 8, max: 30, how: "renegotiate phone, internet and insurance annually" },
     { k: "fee", name: "Fees and interest", base: ann(t => t.c === "Fees & Interest"), pct: 100, max: 100, how: "avoidable with autopay, alerts and paying statements in full" },
   ].filter(l => l.base > 0);
   const save = l => l.base * l.pct / 100;
@@ -290,12 +290,12 @@ function insights() {
   const bullets = [];
   [...levers].sort((a, b) => save(b) - save(a)).slice(0, 4).forEach(l => {
     const gp = { subs: "Subscriptions", din: "Dining", shp: "Shopping", trn: "Transport", bil: "Bills & Utilities" }[l.k];
-    const top = gp ? topN(new Map([...groupBy(rows.filter(t => t.g === gp), t => t.v)].map(([v, ts]) => [v, spendOf(ts)])), 3).map(([v, s]) => `${v} (${fmt0(s / M * 12)})`).join(", ") : "";
+    const top = gp ? topN(new Map([...groupBy(rows.filter(t => t.c === gp), t => t.v)].map(([v, ts]) => [v, spendOf(ts)])), 3).map(([v, s]) => `${v} (${fmt0(s / M * 12)})`).join(", ") : "";
     bullets.push(`<b>${l.name}:</b> ${fmt0(l.base)} a year (${fmt0(l.base / 12)}/mo). If you ${l.how} and cut ${l.pct}%, that is about <b>${fmt0(save(l))}</b> a year.${top ? " Largest: " + esc(top) + "." : ""}`);
   });
   const stream = rec.filter(r => STREAM.test(r.v));
   if (stream.length >= 3) bullets.push(`<b>Streaming overlap:</b> ${stream.length} services (${stream.map(r => esc(r.v)).join(", ")}) cost ${fmt0(sum(stream, r => r.annual))} a year. Keeping the two you use most and rotating the rest could save roughly ${fmt0(sum(stream, r => r.annual) * .5)}.`);
-  const hikes = rec.filter(r => r.change > .03 && r.n >= 4 && r.g !== "Bills & Utilities").sort((a, b) => b.change * b.annual - a.change * a.annual).slice(0, 3);
+  const hikes = rec.filter(r => r.change > .03 && r.n >= 4 && r.c !== "Bills & Utilities").sort((a, b) => b.change * b.annual - a.change * a.annual).slice(0, 3);
   if (hikes.length) bullets.push(`<b>Price creep:</b> ${hikes.map(r => `${esc(r.v)} is up ${Math.round(r.change * 100)}% to ${fmt2(r.lastAmt)}`).join("; ")}. Worth a call or a plan downgrade.`);
   const cats = GROUPS.map(gp => { const rec3 = completeMonths(3), prior = completeMonths(12).slice(0, 9);
     const a = spendOf(D.spend.filter(t => t.g === gp && rec3.includes(t.m))) / 3, b = spendOf(D.spend.filter(t => t.g === gp && prior.includes(t.m))) / 9; return { gp, a, b, d: a - b }; }).filter(x => x.b > 20);
