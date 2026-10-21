@@ -135,3 +135,12 @@ tr.dim td { color: var(--muted); }
 /* header: the nav takes its own row when space is tight, instead of collapsing */
 @media (max-width: 1180px) { header.top .in { gap: 8px 16px; } nav { order: 3; flex: 1 1 100%; } .tools { margin-left: auto; } }
 @media (max-width: 700px) { header.top { position: static; } .tools { font-size: 11px; } main { padding-top: 12px; } }
+
+/* meta page */
+.count { display: inline-block; margin-left: 8px; padding: 0 8px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 9%, transparent); color: var(--ink2); font-size: 12px; font-weight: 600; vertical-align: 2px; }
+.rawlines { font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink2); padding: 6px 0 2px; white-space: pre-wrap; word-break: break-word; }
+td details summary { cursor: pointer; font-weight: 500; } td details[open] { padding-bottom: 4px; }
+td select { padding: 4px 6px; font-size: 13px; max-width: 170px; }
+details.audit > summary { cursor: pointer; padding: 2px 0 8px; } details.audit { padding-top: 12px; }
+.span-12 > .kpis { margin: 0; }
+.nw { white-space: nowrap; }

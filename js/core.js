@@ -86,8 +86,11 @@ function buildModel(store) {
   D.accts = store.accounts;
   D.txs = Object.entries(store.transactions).filter(([, t]) => !t.pending && t.kind).map(([id, t]) => {
     const day = Math.floor(t.posted / 86400);
-    return { id, a: t.account, day, ds: isoOf(day), m: isoOf(day).slice(0, 7), amt: t.amount, desc: t.description, v: t.vendor || "Unknown", c: t.cat || "Uncategorized", k: t.kind };
+    return { id, a: t.account, day, ds: isoOf(day), m: isoOf(day).slice(0, 7), amt: t.amount, desc: t.description, v: t.vendor || "Unknown", c: t.cat || "Uncategorized", k: t.kind, seen: t.seen, match: t.match };
   }).sort((x, y) => y.day - x.day);
+  /* pipeline facts (run log, GitHub, code, rules) and items still pending at the bank, for the Meta page */
+  D.meta = store.meta || {};
+  D.pending = Object.entries(store.transactions).filter(([, t]) => t.pending).map(([id, t]) => ({ id, a: t.account, day: Math.floor(t.posted / 86400), amt: t.amount, desc: t.description })).sort((x, y) => y.day - x.day);
   D.spend = D.txs.filter(t => SPEND_KINDS.has(t.k));
   if (D.lumps) // optional: paydowns to cards with no itemised history count as one lump of spending
     D.spend = D.spend.concat(D.txs.filter(t => t.k === "card_payment_out_unlinked").map(t => ({ ...t, v: "Card paydown (no detail)", c: "Card spending (no detail)", k: "spend" })));

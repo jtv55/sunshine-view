@@ -1,7 +1,7 @@
 "use strict";
 /* App shell: page router, unlock screen, header controls. */
 
-const PAGES = { overview, cashflow, spending, savings: insights, accounts };
+const PAGES = { overview, cashflow, spending, savings: insights, accounts, meta };
 const ALIASES = { weekly: "overview", trends: "cashflow", insights: "savings" }; // old bookmarks keep working
 
 function route() {
