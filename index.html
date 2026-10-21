@@ -4,175 +4,35 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'">
 <title>Sunshine</title>
-<style>
-:root {
-  --bg: #f6f5f1; --card: #ffffff; --ink: #1c1b18; --muted: #6d6a62; --line: #e4e1d8;
-  --accent: #c2410c; --bar: #d97a3a; --good: #2f7d4f;
-}
-@media (prefers-color-scheme: dark) {
-  :root { --bg: #14130f; --card: #1e1c17; --ink: #f1efe8; --muted: #9c988b; --line: #33302a;
-          --accent: #fb923c; --bar: #e8893f; --good: #5fc08a; }
-}
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, sans-serif; }
-main { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
-h1 { font-size: 22px; margin: 0 0 4px; } h2 { font-size: 15px; margin: 0 0 12px; }
-.muted { color: var(--muted); }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-top: 16px; }
-.row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
-.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 16px; }
-.kpis .card { margin: 0; } .kpi-v { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; }
-select, input, button { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
-button { cursor: pointer; background: var(--accent); color: #fff; border-color: transparent; }
-#lock { max-width: 360px; margin: 18vh auto 0; }
-#lock form { display: flex; gap: 8px; } #lock input { flex: 1; min-width: 0; }
-.err { color: #dc2626; min-height: 1.4em; }
-.cat { display: grid; grid-template-columns: 110px 1fr 90px; gap: 10px; align-items: center; padding: 6px 4px; border-radius: 6px; cursor: pointer; }
-.cat:hover, .cat.sel { background: color-mix(in srgb, var(--accent) 12%, transparent); }
-.track { height: 12px; background: var(--line); border-radius: 6px; overflow: hidden; }
-.fill { height: 100%; background: var(--bar); border-radius: 6px; }
-.amt { text-align: right; font-variant-numeric: tabular-nums; }
-table { width: 100%; border-collapse: collapse; } td, th { padding: 7px 4px; border-bottom: 1px solid var(--line); text-align: left; }
-th.amt, td.amt { text-align: right; } td.pos { color: var(--good); }
-svg text { fill: var(--muted); font-size: 11px; } svg rect.m { fill: var(--bar); } svg rect.m.sel { fill: var(--accent); }
-[hidden] { display: none !important; }
-</style>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="lock" class="card">
-  <h1>Sunshine</h1>
-  <p class="muted">Enter your passphrase to decrypt your data. Decryption happens in this browser only.</p>
-  <form id="f"><input id="pw" type="password" placeholder="Passphrase" autocomplete="current-password" autofocus><button>Unlock</button></form>
-  <div class="err" id="err"></div>
+<div id="lock">
+  <div class="card">
+    <div class="brand" style="font-size:20px">Sunshine</div>
+    <p class="muted" style="margin:6px 0 0">Enter your passphrase to decrypt your data. Decryption happens in this browser only.</p>
+    <form id="f"><input id="pw" type="password" placeholder="Passphrase" autocomplete="current-password" aria-label="Passphrase" autofocus><button class="primary">Unlock</button></form>
+    <div class="err" id="err" role="alert"></div>
+  </div>
 </div>
 
-<main id="app" hidden>
-  <div class="row">
-    <div><h1>Sunshine</h1><div class="muted" id="asof"></div></div>
-    <select id="month" aria-label="Month"></select>
-  </div>
-  <div class="kpis">
-    <div class="card"><div class="muted">Spent</div><div class="kpi-v" id="k-spent"></div></div>
-    <div class="card"><div class="muted">Income</div><div class="kpi-v" id="k-income"></div></div>
-    <div class="card"><div class="muted">Net</div><div class="kpi-v" id="k-net"></div></div>
-    <div class="card"><div class="muted">Net worth</div><div class="kpi-v" id="k-nw"></div></div>
-  </div>
-  <div class="card"><h2>Spending by category</h2><div id="cats"></div></div>
-  <div class="card"><h2>Monthly spending</h2><div id="trend"></div></div>
-  <div class="card">
-    <div class="row"><h2 id="tx-title">Transactions</h2><input id="q" type="search" placeholder="Search"></div>
-    <table><thead><tr><th>Date</th><th>Description</th><th>Category</th><th class="amt">Amount</th></tr></thead><tbody id="tx"></tbody></table>
-  </div>
-  <div class="card"><h2>Accounts</h2><table><tbody id="accts"></tbody></table></div>
-</main>
+<div id="app" hidden>
+  <header class="top"><div class="in">
+    <span class="brand">Sunshine</span>
+    <nav aria-label="Pages">
+      <a href="#weekly" data-p="weekly">Weekly update</a>
+      <a href="#trends" data-p="trends">Long-term trends</a>
+      <a href="#insights" data-p="insights">Actionable insights</a>
+    </nav>
+    <div class="tools"><span id="asof"></span><button class="ghost" id="theme" title="Toggle light/dark">Theme</button><button class="ghost" id="lockbtn">Lock</button></div>
+  </div></header>
+  <main id="page"></main>
+</div>
 
-<script>
-const ITER_FALLBACK = 600000;
-const NON_SPEND = new Set(["Income", "Transfers"]);
-const $ = id => document.getElementById(id);
-const fmt = n => n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-const fmt2 = n => n.toLocaleString(undefined, { style: "currency", currency: "USD" });
-const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
-let rules = {}, store, txs = [], selCat = null, selMonth = null;
-
-async function decrypt(blob, pass) {
-  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
-  const key = await crypto.subtle.deriveKey(
-    { name: "PBKDF2", salt: b64(blob.salt), iterations: blob.iter || ITER_FALLBACK, hash: "SHA-256" },
-    base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
-  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64(blob.iv) }, key, b64(blob.ct));
-  return JSON.parse(new TextDecoder().decode(pt));
-}
-
-function categorize(desc, amount) {
-  const d = desc.toLowerCase();
-  for (const [cat, words] of Object.entries(rules)) if (words.some(w => d.includes(w))) return cat;
-  return amount > 0 ? "Income" : "Other";
-}
-
-$("f").addEventListener("submit", async e => {
-  e.preventDefault(); $("err").textContent = "Decrypting…";
-  try {
-    const [blob, r] = await Promise.all([
-      fetch("store.enc", { cache: "no-store" }).then(r => r.json()),
-      fetch("rules.json", { cache: "no-store" }).then(r => r.json()).catch(() => ({}))]);
-    rules = r; store = await decrypt(blob, $("pw").value);
-  } catch { $("err").textContent = "Wrong passphrase or no data yet."; return; }
-  $("lock").hidden = true; $("app").hidden = false; init();
-});
-
-function init() {
-  txs = Object.values(store.transactions).filter(t => !t.pending).map(t => ({
-    ...t, date: new Date(t.posted * 1000), month: new Date(t.posted * 1000).toISOString().slice(0, 7),
-    cat: categorize(t.description, t.amount) }));
-  txs.sort((a, b) => b.posted - a.posted);
-  const months = [...new Set(txs.map(t => t.month))].sort().reverse();
-  selMonth = months[0] || new Date().toISOString().slice(0, 7);
-  $("month").replaceChildren(...(months.length ? months : [selMonth]).map(m => new Option(m, m)));
-  $("month").onchange = () => { selMonth = $("month").value; selCat = null; render(); };
-  $("q").oninput = renderTx;
-  const dates = Object.keys(store.snapshots).sort();
-  $("asof").textContent = dates.length ? "Updated " + dates[dates.length - 1] : "";
-  render();
-}
-
-const monthTxs = () => txs.filter(t => t.month === selMonth);
-const spendOf = list => list.filter(t => t.amount < 0 && !NON_SPEND.has(t.cat));
-
-function render() {
-  const m = monthTxs(), sp = spendOf(m);
-  const spent = -sp.reduce((s, t) => s + t.amount, 0);
-  const income = m.filter(t => t.cat === "Income" && t.amount > 0).reduce((s, t) => s + t.amount, 0);
-  $("k-spent").textContent = fmt(spent); $("k-income").textContent = fmt(income); $("k-net").textContent = fmt(income - spent);
-  const accts = Object.values(store.accounts);
-  $("k-nw").textContent = fmt(accts.reduce((s, a) => s + a.balance, 0));
-
-  const byCat = {}; sp.forEach(t => byCat[t.cat] = (byCat[t.cat] || 0) - t.amount);
-  const rows = Object.entries(byCat).sort((a, b) => b[1] - a[1]), max = rows[0]?.[1] || 1;
-  $("cats").replaceChildren(...rows.map(([c, v]) => {
-    const el = document.createElement("div"); el.className = "cat" + (c === selCat ? " sel" : "");
-    el.innerHTML = '<span></span><div class="track"><div class="fill"></div></div><span class="amt"></span>';
-    el.children[0].textContent = c; el.children[1].firstChild.style.width = (v / max * 100) + "%"; el.children[2].textContent = fmt(v);
-    el.onclick = () => { selCat = selCat === c ? null : c; render(); };
-    return el;
-  }));
-  if (!rows.length) $("cats").textContent = "No spending this month.";
-
-  renderTrend(); renderTx();
-  $("accts").replaceChildren(...accts.sort((a, b) => b.balance - a.balance).map(a => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = "<td></td><td class='muted'></td><td class='amt'></td>";
-    tr.children[0].textContent = a.name; tr.children[1].textContent = a.org; tr.children[2].textContent = fmt2(a.balance);
-    return tr;
-  }));
-}
-
-function renderTrend() {
-  const tot = {}; spendOf(txs).forEach(t => tot[t.month] = (tot[t.month] || 0) - t.amount);
-  const ms = Object.keys(tot).sort().slice(-12), max = Math.max(1, ...ms.map(k => tot[k]));
-  const w = 60, h = 140, svg = ms.map((k, i) => {
-    const bh = tot[k] / max * 100, x = i * w + 8;
-    return `<rect class="m${k === selMonth ? " sel" : ""}" x="${x}" y="${115 - bh}" width="${w - 16}" height="${bh}" rx="3"/>` +
-      `<text x="${x + (w - 16) / 2}" y="${108 - bh}" text-anchor="middle">${fmt(tot[k])}</text>` +
-      `<text x="${x + (w - 16) / 2}" y="132" text-anchor="middle">${k.slice(2)}</text>`;
-  }).join("");
-  $("trend").innerHTML = `<svg viewBox="0 0 ${Math.max(ms.length, 1) * w} ${h}" width="100%" style="max-width:${ms.length * w}px" role="img" aria-label="Monthly spending">${svg}</svg>`;
-}
-
-function renderTx() {
-  const q = $("q").value.toLowerCase();
-  let list = monthTxs().filter(t => (!selCat || t.cat === selCat) && t.description.toLowerCase().includes(q));
-  $("tx-title").textContent = "Transactions" + (selCat ? " · " + selCat : "");
-  $("tx").replaceChildren(...list.slice(0, 200).map(t => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = "<td></td><td></td><td class='muted'></td><td class='amt'></td>";
-    tr.children[0].textContent = t.date.toISOString().slice(0, 10); tr.children[1].textContent = t.description;
-    tr.children[2].textContent = t.cat; tr.children[3].textContent = fmt2(t.amount);
-    if (t.amount > 0) tr.children[3].className = "amt pos";
-    return tr;
-  }));
-}
-</script>
+<script src="echarts.min.js"></script>
+<script src="core.js"></script>
+<script src="pages.js"></script>
 </body>
 </html>
