@@ -117,3 +117,22 @@ function suByPeriodCard(periods, { title = "Sources and uses by month", span = 1
   });
   return c;
 }
+
+/* ---------- income by source, per bucket ---------- */
+function incomeBySourceCard(B, { span = 6, height = 320 } = {}) {
+  const all = inWin(D.income, B[0].lo, B[B.length - 1].hi), total = sum(all, t => t.amt);
+  const byV = [...groupBy(all, t => t.v)].map(([v, ts]) => [v, sum(ts, t => t.amt)]).sort((a, b) => b[1] - a[1]), top = byV.slice(0, 4).map(x => x[0]);
+  const per = B.map(b => { const ts = inWin(D.income, b.lo, b.hi), o = Object.fromEntries(top.map(v => [v, 0])); o["Other income"] = 0; ts.forEach(t => { o[top.includes(t.v) ? t.v : "Other income"] += t.amt; }); return o; });
+  const names = [...top, ...(per.some(o => o["Other income"] > 0.5) ? ["Other income"] : [])];
+  const lead = byV[0];
+  const c = card({ title: "Income by source", sub: lead ? `${byV.length} source${byV.length === 1 ? "" : "s"}; ${esc(lead[0])} provides ${Math.round(lead[1] / total * 100)}% of income` : "No income in this range", span, height,
+    table: () => ({ cols: ["Period", ...names, "Total"], num: names.map((_, i) => i + 1).concat([names.length + 1]), rows: B.map((b, i) => [b.long, ...names.map(n => fmt0(per[i][n])), fmt0(sum(names, n => per[i][n]))]) }) });
+  c.draw(() => {
+    const t = T(), shades = [0, .35, .58, .74, .86].map(a => mix(css("--ink"), css("--surface"), a));
+    const series = names.map((n, i) => ({ name: n, type: "bar", stack: "i", barWidth: "58%", data: per.map(o => Math.round(o[n])), itemStyle: { color: shades[i], borderColor: t.surface, borderWidth: 1 }, emphasis: { focus: "series" } }));
+    return baseOpt({ legend: { ...baseOpt().legend, show: names.length > 1, data: names }, grid: { left: 56, right: 12, top: 30, bottom: 28 },
+      tooltip: { ...baseOpt().tooltip, trigger: "axis", axisPointer: { type: "shadow" }, formatter: ps => `<b>${esc(B[ps[0].dataIndex].long)}</b><br>` + ps.filter(p => p.value).reverse().map(p => `${p.marker}${esc(p.seriesName)}: <b>${fmt0(p.value)}</b>`).join("<br>") },
+      xAxis: { type: "category", data: B.map(b => b.label), ...axisStyle(), splitLine: { show: false } }, yAxis: moneyAxis(), series });
+  });
+  return c;
+}

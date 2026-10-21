@@ -102,7 +102,10 @@ function buildModel(store) {
   D.firstDay = D.txs.length ? D.txs[D.txs.length - 1].day : D.asOf;
 }
 const inWin = (list, lo, hi) => list.filter(t => t.day >= lo && t.day <= hi);
-const completeMonths = n => { const out = []; for (let i = n; i >= 1; i--) out.push(monthShift(D.curMonth, -i)); return out; };
+/* A month counts as complete only if it is over AND the data covers all of it (the month the data starts in is partial). */
+const monthStartDay = m => dayNum(m + "-01");
+const monthIsComplete = m => m < D.curMonth && monthStartDay(m) >= D.firstDay - 2;
+const completeMonths = n => { const out = []; for (let i = n; i >= 1; i--) { const m = monthShift(D.curMonth, -i); if (monthIsComplete(m)) out.push(m); } return out; };
 const spendOf = list => sum(list, t => t.s);
 
 /* ---------- chart + card helpers ---------- */

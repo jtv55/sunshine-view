@@ -18,13 +18,20 @@ function recon(lo, hi) {
   return { rows, toLinked: { n: toLinked.length, amt: -sum(toLinked, x => x.amt) }, toUnlinked: { n: toUnlinked.length, amt: -sum(toUnlinked, x => x.amt) } };
 }
 
-function reconSection(lo, hi, label) {
-  const r = recon(lo, hi), root = h("section", { class: "recon" });
-  root.append(h("h2", {}, "Credit card reconciliation"), h("div", { class: "sub" },
-    `${label}. Card paydowns are matched one-to-one between the bank debit and the card credit, so each is counted once and kept out of the spending charts above. Vendor detail comes from the card purchases themselves.`));
-  if (!r.rows.length) { root.append(h("div", { class: "card" }, "No credit-card accounts were found in the feed. If a card is missing, add its name to scripts/accounts.json.")); return root; }
+function reconSection(lo, hi, label, { open = false } = {}) {
+  const r = recon(lo, hi), root = h("details", { class: "recon" }), head = h("summary", {});
+  if (open) root.setAttribute("open", "");
+  root.append(head, h("div", { class: "sub" },
+    `${label}. Card paydowns are matched one-to-one between the bank debit and the card credit, so each is counted once and kept out of the spending charts. Vendor detail comes from the card purchases themselves.`));
+  if (!r.rows.length) {
+    head.append(h("b", {}, "Credit card reconciliation"), h("span", { class: "muted" }, " no credit-card accounts found"));
+    root.append(h("div", { class: "card" }, "No credit-card accounts were found in the feed. If a card is missing, add its name to config/accounts.json."));
+    return root;
+  }
   const T_ = k => sum(r.rows, x => x[k]);
   const tot = { owedOpen: T_("owedOpen"), charges: T_("charges"), refunds: T_("refunds"), payMatched: T_("payMatched"), payOther: T_("payOther"), owedNow: T_("owedNow") };
+  head.append(h("b", {}, "Credit card reconciliation"), h("span", { class: "muted" }, ` ${label} · owed now ${fmt0(tot.owedNow)} · paid down ${fmt0(tot.payMatched + tot.payOther)}` +
+    (r.toUnlinked.n ? ` · ${fmt0(r.toUnlinked.amt)} paid to cards with no detail` : "")));
   const wf = card({ title: "Where the balance came from", sub: "All cards combined: implied balance owed at the start of the window, to balance owed now", span: 5, height: 300,
     table: () => ({ cols: ["Step", "Amount"], num: [1], rows: [["Owed at start (implied)", fmt0(tot.owedOpen)], ["+ Charges", fmt0(tot.charges)], ["- Refunds", fmt0(-tot.refunds)],
       ["- Paydowns from linked accounts (de-duplicated)", fmt0(-tot.payMatched)], ["- Paydowns from other sources", fmt0(-tot.payOther)], ["= Owed now (reported)", fmt0(tot.owedNow)]] }) });
