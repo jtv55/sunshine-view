@@ -40,6 +40,9 @@ function trends() {
   });
   g.append(c1.root);
 
+  // sources & uses, one pair of stacks per month
+  g.append(suByPeriodCard(months.map(m => ({ label: mlabel(m), lo: dayNum(m + "-01"), hi: dayNum(monthShift(m, 1) + "-01") - 1 }))).root);
+
   // 2. net per month diverging
   const nets = months.map(m => byM[m].inc - byM[m].tot);
   const c2 = card({ title: "Net per month", sub: "Income minus spending: blue = surplus, red = shortfall", span: 6, height: 300,

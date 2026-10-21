@@ -91,6 +91,9 @@ function weekly() {
   });
   g.append(c4.root);
 
+  // 5. running income vs spending (up to 26 weeks) and where the money came from / went
+  g.append(cumulativeCard(Math.max(D.firstDay, end - 181), end).root, suCard(lo3, end, { title: "Sources and uses, last 3 weeks" }).root);
+
   // 5. vendor x week heat table
   const vt = new Map(); all3.forEach(t => { const e = vt.get(t.v) || { v: t.v, c: t.c, w: [0, 0, 0] }; const wi = W.findIndex(w => t.day >= w.lo && t.day <= w.hi); if (wi >= 0) e.w[wi] += t.s; vt.set(t.v, e); });
   const vrows = [...vt.values()].map(e => ({ ...e, tot: sum(e.w) })).filter(e => e.tot > 0).sort((a, b) => b.tot - a.tot).slice(0, 14);
