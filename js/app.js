@@ -20,7 +20,9 @@ $("#f").addEventListener("submit", async e => {
   try { D.lumps = localStorage.getItem("lumps") === "1"; } catch { D.lumps = false; }
   $("#lumps").checked = D.lumps;
   buildModel(store); $("#pw").value = ""; $("#lock").hidden = true; $("#app").hidden = false;
-  $("#asof").textContent = "Updated " + D.updated; route();
+  const build = (document.querySelector('meta[name="build"]') || {}).content || "dev";
+  $("#asof").textContent = `Updated ${D.updated} · build ${build}`; $("#asof").title = "The build is the version of the dashboard code this tab is running. If it doesn't match the latest, hard-refresh.";
+  route();
 });
 window.addEventListener("hashchange", route);
 $("#lumps").addEventListener("change", e => { D.lumps = e.target.checked; try { localStorage.setItem("lumps", D.lumps ? "1" : "0"); } catch { /* private mode */ } buildModel(D.store); route(); });
