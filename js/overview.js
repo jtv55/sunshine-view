@@ -18,6 +18,11 @@ function attentionItems() {
   if (dq.uncategorizedPct > .03) say("info", `<b>Uncategorized spending.</b> ${Math.round(dq.uncategorizedPct * 100)}% of the last 90 days (${fmt0(dq.uncategorized)}) has no category, mostly ${esc(dq.uncTop.slice(0, 3).map(x => x[0]).join(", "))}.`);
   const su = sourcesUses(D.asOf - 89, D.asOf), plug = [...su.src, ...su.use].find(x => x.plug);
   if (plug && plug.value > .02 * su.total) say("info", `<b>Unmatched money.</b> ${fmt0(plug.value)} of the last 90 days' flows can't be matched to an account, often a transfer to an account that isn't connected.`);
+  // an account whose bank hasn't refreshed in a day and a half is showing yesterday's (or older) numbers
+  const lastTx = {}; D.txs.forEach(t => { lastTx[t.a] = Math.max(lastTx[t.a] ?? 0, t.day); });
+  const stale = Object.entries(D.accts).filter(([id, a]) => a.kind !== "dup" && a.balance_date && nowSec() - a.balance_date > 36 * 3600 && (a.balance !== 0 || D.asOf - (lastTx[id] ?? 0) <= 45))
+    .map(([id, a]) => ({ name: acctShort(id), hours: Math.round((nowSec() - a.balance_date) / 3600) })).sort((x, y) => y.hours - x.hours);
+  if (stale.length) say("watch", `<b>Stale bank data.</b> ${stale.slice(0, 3).map(s => `${esc(s.name)} last refreshed ${s.hours < 72 ? s.hours + " hours" : Math.round(s.hours / 24) + " days"} ago`).join("; ")}${stale.length > 3 ? `; and ${stale.length - 3} more` : ""}. SimpleFIN refreshes each bank about once a day at a time the bank controls, so these balances and the newest transactions may lag.`);
   if (dq.days < 120) say("info", `<b>Short history.</b> The data covers ${dq.weeks} weeks, so year-over-year and long-range views fill in as history builds up nightly.`);
   return items;
 }
