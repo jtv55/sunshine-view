@@ -26,18 +26,25 @@ function patternFor(g) {
   }
   return parts.join("|");
 }
-const ruleFor = (g, cat) => JSON.stringify([patternFor(g), g.v, cat]);
+const entryFor = (g, cat) => [patternFor(g), g.v, cat];
+const ruleFor = (g, cat) => JSON.stringify(entryFor(g, cat));
+/* What the Copy button puts on the clipboard: one line the workflow's add_rules box accepts. */
+const payloadFor = (listKey, entries) => JSON.stringify({ [listKey]: entries });
 
 function vendorGroups() { // every merchant with a real category, biggest first
   return [...groupBy(D.spend.filter(t => t.amt < 0 && !["Uncategorized", "Transfers", "Card spending (no detail)"].includes(t.c)), t => t.v)].map(([v, ts]) => ({ v, c: ts[0].c, ts: ts.sort((a, b) => b.day - a.day),
     n: ts.length, total: spendOf(ts), accts: [...new Set(ts.map(t => t.a))], channels: [...new Set(ts.map(channelOf))], ends: [...new Set(ts.map(cardEnding).filter(Boolean))] })).sort((a, b) => b.total - a.total);
 }
 
-function rulePickerCard({ title, sub, groups, showCurrent = false, search = false, listName, empty }) {
+function rulePickerCard({ title, sub, groups, showCurrent = false, search = false, listKey, empty }) {
   const cats = categoryChoices(), chosen = new Map(), root = h("div", { class: "card span-12" }), o = showCurrent ? 1 : 0;
   const copyAll = h("button", { class: "primary", disabled: "" }, "Copy chosen rules");
   const refresh = () => { const n = chosen.size; copyAll.textContent = n ? `Copy ${n} chosen rule${n === 1 ? "" : "s"}` : "Copy chosen rules"; copyAll.toggleAttribute("disabled", !n); };
-  copyAll.addEventListener("click", () => copyText([...chosen.values()].join(",\n"), copyAll));
+  const repo = (D.meta.github || {}).repo, runUrl = repo ? `https://github.com/${repo}/actions/workflows/update.yml` : null;
+  const next = h("div", { class: "nextstep", hidden: "" }, h("b", {}, "Copied. Nothing has changed yet. "), "To apply it: open Run workflow, paste into the ", h("b", {}, "add_rules"), " box, and press Run. About a minute later, refresh this page.",
+    runUrl ? h("a", { class: "linkbtn", href: runUrl, target: "_blank", rel: "noopener" }, "Open Run workflow") : null);
+  const showNext = () => { next.hidden = false; };
+  copyAll.addEventListener("click", () => copyText(payloadFor(listKey, [...chosen.values()]), copyAll, showNext));
   const box = search ? h("input", { type: "search", placeholder: "Find a merchant", "aria-label": "Find a merchant", style: "width:200px" }) : null;
   root.append(h("div", { class: "hd" }, h("div", {}, h("h2", {}, title, h("span", { class: "count" }, String(groups.length))), h("div", { class: "sub" }, sub)), h("div", { class: "row-actions" }, box, copyAll)));
   if (!groups.length) { root.append(h("div", { class: "note ok" }, empty)); return root; }
@@ -47,8 +54,8 @@ function rulePickerCard({ title, sub, groups, showCurrent = false, search = fals
     const guess = !showCurrent && g.channels.includes("Online bill pay / ACH") ? "Bills & Utilities" : "", pat = patternFor(g), clash = collateral(pat, g);
     const sel = h("select", { "aria-label": `Category for ${g.v}` }, h("option", { value: "" }, "Choose..."), cats.map(c => h("option", { value: c, selected: c === guess ? "" : null }, c)));
     const btn = h("button", { class: "ghost", disabled: "" }, "Copy rule");
-    const sync = () => { const cat = sel.value; btn.toggleAttribute("disabled", !cat || cat === g.c); if (cat && cat !== g.c) chosen.set(g.v, ruleFor(g, cat)); else chosen.delete(g.v); refresh(); };
-    sel.addEventListener("change", sync); btn.addEventListener("click", () => copyText(ruleFor(g, sel.value) + ",", btn));
+    const sync = () => { const cat = sel.value; btn.toggleAttribute("disabled", !cat || cat === g.c); if (cat && cat !== g.c) chosen.set(g.v, entryFor(g, cat)); else chosen.delete(g.v); refresh(); };
+    sel.addEventListener("change", sync); btn.addEventListener("click", () => copyText(payloadFor(listKey, [entryFor(g, sel.value)]), btn, showNext));
     const lines = h("div", { class: "rawlines" }, g.ts.slice(0, 12).map(t => h("div", {}, `${isoOf(t.day)}  ${fmt2(t.s)}  ${acctShort(t.a)}  ${t.desc}`)),
       h("div", { class: clash.length ? "warnline" : "muted" }, `Pattern: ${pat}` + (clash.length ? `  (would also match: ${clash.join(", ")})` : "")));
     const ends = g.ends.length ? ` (card ending ${g.ends.join(", ")})` : "";
@@ -61,11 +68,11 @@ function rulePickerCard({ title, sub, groups, showCurrent = false, search = fals
   const draw = () => { const q = box ? box.value.trim().toLowerCase() : ""; body.replaceChildren(...groups.filter(g => !q || g.v.toLowerCase().includes(q) || g.ts[0].desc.toLowerCase().includes(q)).slice(0, 25).map(rowFor)); };
   if (box) box.addEventListener("input", draw);
   draw();
-  root.append(h("div", { class: "tablev", style: "max-height:560px" }, table),
-    h("div", { class: "note" }, `Shows the 25 largest${search ? " matches" : ""} of ${groups.length}. Paste the copied lines into the ${listName} list in config/vendors.json (or send them to Claude), then run the workflow with no_fetch. The whole history is re-filed.`));
+  root.append(next, h("div", { class: "tablev", style: "max-height:560px" }, table),
+    h("div", { class: "note" }, `Shows the 25 largest${search ? " matches" : ""} of ${groups.length}. Copy only puts the rule on your clipboard; it takes effect when you run the workflow with it pasted into add_rules. The whole history is then re-filed and the rule is saved to your private config.`));
   return root;
 }
 
-const unrecognizedCard = () => rulePickerCard({ title: "Unrecognized merchants", sub: "No rule knows these yet. Pick a category and copy the rule.", groups: unrecognizedGroups(), listName: "`rules`", empty: "Every merchant in the data has a category." });
-const recategorizeCard = () => rulePickerCard({ title: "Fix a category", sub: "Is a merchant filed under the wrong category? Choose the right one. Corrections go in the `overrides` list, which beats every other rule.",
-  groups: vendorGroups(), showCurrent: true, search: true, listName: "`overrides`", empty: "No categorized merchants yet." });
+const unrecognizedCard = () => rulePickerCard({ title: "Unrecognized merchants", sub: "No rule knows these yet. Pick a category and copy the rule.", groups: unrecognizedGroups(), listKey: "rules", empty: "Every merchant in the data has a category." });
+const recategorizeCard = () => rulePickerCard({ title: "Fix a category", sub: "Is a merchant filed under the wrong category? Choose the right one. Corrections are saved as overrides, which beat every other rule.",
+  groups: vendorGroups(), showCurrent: true, search: true, listKey: "overrides", empty: "No categorized merchants yet." });

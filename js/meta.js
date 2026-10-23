@@ -28,10 +28,11 @@ const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const dcell = d => h("span", { class: "nw" }, isoOf(d));
 const ago = sec => sec < 5400 ? `${Math.max(1, Math.round(sec / 60))} min ago` : sec < 172800 ? `${Math.round(sec / 3600)} h ago` : `${Math.round(sec / 86400)} days ago`;
 
-async function copyText(text, btn) {
+async function copyText(text, btn, after) {
   const old = btn.textContent;
   try { await navigator.clipboard.writeText(text); btn.textContent = "Copied"; setTimeout(() => { btn.textContent = old; }, 1600); }
   catch { window.prompt("Copy this:", text); }
+  if (after) after();
 }
 
 /* A table whose body is built from DOM rows, in a card that scrolls. */
