@@ -127,6 +127,13 @@ function ledgerCards() {
       series: [{ type: "line", data: cov.map(r => +(r.coverage * 100).toFixed(1)), symbol: "circle", symbolSize: 6, lineStyle: { color: t.accent, width: 2.5 }, itemStyle: { color: t.accent, borderColor: t.surface, borderWidth: 2 } }] }); });
   out.push(cov.length >= 3 ? c2.root : h("div", { class: "card span-6" }, h("h2", {}, "Categorized share over time"), h("div", { class: "note" }, "Needs a few logged runs. It starts recording with the next update.")));
 
+  // how the fine-grained categories roll up into the 8 chart colors
+  const sp = D.spend.filter(t => t.day >= D.asOf - 89), tot = spendOf(sp) || 1;
+  const roll = GROUPS.map(gp => ({ gp, v: spendOf(sp.filter(t => t.g === gp)), members: gp === "Other" ? OTHER_CATS : (GROUP_MEMBERS[gp] || [gp]) })), otherShare = roll[roll.length - 1].v / tot;
+  out.push(listCard({ title: "How categories roll up", span: 12, sub: `Gray Other is ${(otherShare * 100).toFixed(1)}% of the last 90 days of spending. Edit "groups" in config/vendors.json to re-group; the fine-grained categories stay intact underneath.`,
+    head: ["Color group", "Includes", "Spent (90 days)", "Share"], num: [2, 3], empty: "No spending yet.",
+    rows: roll.map(r => [h("span", { class: "chip" }, h("i", { class: "dot", style: `background:${catColor(r.gp)}` }), r.gp), r.members.length ? r.members.join(", ") : "nothing", fmt0(r.v), (r.v / tot * 100).toFixed(1) + "%"]) }));
+
   const rep = D.meta.rules;
   if (rep) out.push(h("div", { class: "card span-12" }, h("div", { class: "hd" }, h("div", {}, h("h2", {}, "Rule health"), h("div", { class: "sub" }, `${rep.total} merchant rules; ${rep.unused_n} never matched anything in your data (harmless, but candidates to prune)`))),
     h("div", { class: "grid" }, h("div", { class: "span-5" }, tableEl(["Most-used rules", "Matches"], rep.top.map(([n, c]) => [n, String(c)]), [1])),

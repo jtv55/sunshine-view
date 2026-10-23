@@ -30,16 +30,26 @@ const monthShift = (m, k) => { const d = new Date(Date.UTC(+m.slice(0, 4), +m.sl
 let cssCache = null;
 const css = n => { cssCache = cssCache || getComputedStyle(document.documentElement); return cssCache.getPropertyValue(n).trim(); };
 function resetTheme() { cssCache = null; }
-/* The palette has 8 category hues. They go to the 8 categories you actually spend the most on (so "Other" stays small),
-   in a fixed preference order so a category keeps its color. Everything else folds into gray "Other". */
+/* The palette has 8 category hues. The private config ("groups" in config/vendors.json, carried in the data) says which
+   fine-grained categories share each hue, in color order; anything not listed is gray "Other". Data without groups falls back
+   to giving the hues to the 8 categories you spend the most on. */
 const PREF = ["Housing", "Groceries", "Dining", "Shopping", "Transport", "Bills & Utilities", "Subscriptions", "Health", "Education", "Travel", "Home",
   "Entertainment", "Personal Care", "Fees & Interest", "Pets", "Business", "Cash & ATM", "Gifts & Charity", "P2P", "Card spending (no detail)"];
-let CAT_ORDER = PREF.slice(0, 8), GROUPS = [...CAT_ORDER, "Other"], OTHER_CATS = [];
-const catGroup = c => CAT_ORDER.includes(c) ? c : "Other";
+let CAT_ORDER = PREF.slice(0, 8), GROUPS = [...CAT_ORDER, "Other"], OTHER_CATS = [], GROUP_OF = {}, GROUP_MEMBERS = {};
+const catGroup = c => GROUP_OF[c] || (CAT_ORDER.includes(c) ? c : "Other");
 const catColor = c => { const i = CAT_ORDER.indexOf(c); return i < 0 ? css("--other") : css("--s" + (i + 1)); };
 function pickCats(spendRows) {
   const tot = new Map();
   spendRows.forEach(t => tot.set(t.c, (tot.get(t.c) || 0) + (-t.amt)));
+  const defs = ((D.meta || {}).groups || []).slice(0, 8);
+  GROUP_OF = {}; GROUP_MEMBERS = {};
+  if (defs.length) {
+    CAT_ORDER = defs.map(d => d[0]);
+    defs.forEach(([g, cats]) => { GROUP_MEMBERS[g] = cats; cats.forEach(c => { GROUP_OF[c] = g; }); });
+    GROUPS = [...CAT_ORDER, "Other"];
+    OTHER_CATS = [...tot].filter(([c, v]) => v !== 0 && !GROUP_OF[c]).sort((a, b) => b[1] - a[1]).map(x => x[0]);
+    return;
+  }
   const ranked = [...tot].filter(([c, v]) => v > 0 && c !== "Uncategorized").sort((a, b) => b[1] - a[1]);
   const top = new Set(ranked.slice(0, 8).map(x => x[0]));
   CAT_ORDER = [...PREF.filter(c => top.has(c)), ...ranked.map(x => x[0]).filter(c => top.has(c) && !PREF.includes(c))];
@@ -148,7 +158,7 @@ function tableEl(cols, rows, num = []) {
   return t;
 }
 function catLegend(cats = GROUPS) {
-  const items = cats.map(c => h("span", { class: "chip" }, h("i", { class: "dot", style: `background:${catColor(c)}` }), c));
+  const items = cats.map(c => h("span", { class: "chip", title: c === "Other" ? OTHER_CATS.join(", ") : (GROUP_MEMBERS[c] || []).join(", ") }, h("i", { class: "dot", style: `background:${catColor(c)}` }), c));
   if (cats.includes("Other") && OTHER_CATS.length) items.push(h("span", { class: "muted" }, "Other = " + OTHER_CATS.slice(0, 6).join(", ") + (OTHER_CATS.length > 6 ? ", ..." : "")));
   return h("div", { class: "legend" }, items);
 }
