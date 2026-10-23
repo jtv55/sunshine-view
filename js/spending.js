@@ -20,32 +20,18 @@ function spending() {
     kpi("Purchases", String(buys.length), buys.length ? `${fmt0(total / buys.length)} average` : "")));
   const g = h("div", { class: "grid" }); page.append(g);
 
-  // category -> vendor sunburst, and the vendor map (treemap)
-  const sunRows = () => { const out = []; for (const [gp, ts] of groupBy(rows, t => t.g)) for (const [v, vs] of groupBy(ts, t => t.v)) { const s = spendOf(vs); if (s > 0) out.push([gp, v, s]); } return out.sort((a, b) => b[2] - a[2]).map(r => [r[0], r[1], fmt0(r[2])]); };
-  const c1 = card({ title: "Where it went: category to vendor", sub: "Inner ring category, outer ring vendors", span: 5, height: 420, table: () => ({ cols: ["Category", "Vendor", "Spent"], num: [2], rows: sunRows() }) });
-  c1.draw(() => {
-    const t = T(), data = [];
-    for (const [gp, ts] of groupBy(rows, x => x.g)) {
-      const col = catColor(gp), vmap = new Map([...groupBy(ts, x => x.v)].map(([v, vs]) => [v, spendOf(vs)])), vend = topN(vmap, 7).filter(([, s]) => s > 0), tot = spendOf(ts);
-      if (tot <= 0) continue;
-      const kids = vend.map(([v, s]) => ({ name: v, value: Math.round(s), itemStyle: { color: mix(col, t.surface, .38) }, label: { color: onColor(mix(col, t.surface, .38)) } }));
-      if (tot - sum(vend, ([, s]) => s) > 1) kids.push({ name: "Other vendors", value: Math.round(tot - sum(vend, ([, s]) => s)), itemStyle: { color: mix(col, t.surface, .62) }, label: { show: false } });
-      data.push({ name: gp, itemStyle: { color: col }, label: { color: onColor(col) }, children: kids });
-    }
-    return baseOpt({ legend: { show: false }, tooltip: { ...baseOpt().tooltip, trigger: "item", formatter: p => `${p.marker}${esc(p.name)}: <b>${fmt0(p.value)}</b>` },
-      series: [{ type: "sunburst", data, radius: ["12%", "96%"], sort: "desc", nodeClick: false, itemStyle: { borderColor: t.surface, borderWidth: 2, borderRadius: 3 },
-        label: { fontSize: 11, minAngle: 16 }, levels: [{}, { r0: "12%", r: "46%", label: { rotate: 0, fontWeight: 600 } }, { r0: "47%", r: "96%", label: { rotate: "radial", align: "center" } }] }] });
-  });
-  const c2 = card({ title: "Vendor map", sub: "Area = spend; top 40 vendors, colored by category", span: 7, height: 420, legend: catLegend(),
-    table: () => ({ cols: ["Vendor", "Category", "Spent", "Per week"], num: [2, 3], rows: vt.slice(0, 40).map(x => [x.v, x.c, fmt0(x.s), fmt0(x.s / weeks)]) }) });
+  // where the money went: one big treemap (area = spend), vendors grouped and colored by category group
+  const MAPN = 70; // room for plenty of vendors now that the map has the whole row
+  const c2 = card({ title: "Where it went", sub: `Area = spend. Top ${MAPN} vendors, grouped by color category.`, span: 12, height: 640, legend: catLegend(),
+    table: () => ({ cols: ["Vendor", "Category", "Spent", "Per week"], num: [2, 3], rows: vt.slice(0, MAPN).map(x => [x.v, x.c, fmt0(x.s), fmt0(x.s / weeks)]) }) });
   c2.draw(() => { const t = T(), kids = new Map();
-    vt.slice(0, 40).forEach(x => { const col = catColor(x.g), bg = mix(col, t.surface, .12); (kids.get(x.g) || kids.set(x.g, []).get(x.g)).push({ name: x.v, value: Math.round(x.s), itemStyle: { color: bg }, label: { color: onColor(bg) } }); });
+    vt.slice(0, MAPN).forEach(x => { const col = catColor(x.g), bg = mix(col, t.surface, .12); (kids.get(x.g) || kids.set(x.g, []).get(x.g)).push({ name: x.v, value: Math.round(x.s), itemStyle: { color: bg }, label: { color: onColor(bg) } }); });
     const data = [...kids].map(([gp, ch]) => ({ name: gp, itemStyle: { color: catColor(gp) }, children: ch }));
     return baseOpt({ legend: { show: false }, tooltip: { ...baseOpt().tooltip, trigger: "item", formatter: p => `${p.marker}${esc(p.name)}: <b>${fmt0(p.value)}</b>` },
       series: [{ type: "treemap", data, roam: false, nodeClick: false, breadcrumb: { show: false }, width: "100%", height: "100%", top: 0, left: 0, right: 0, bottom: 0,
-        label: { show: true, formatter: p => p.name + "\n" + fmt0(p.value), fontSize: 11, overflow: "truncate", position: "insideTopLeft", padding: 4 }, upperLabel: { show: true, height: 20, color: t.ink, fontWeight: 600, fontSize: 11 },
-        levels: [{ itemStyle: { borderColor: t.surface, borderWidth: 0, gapWidth: 3 } }, { itemStyle: { borderColor: t.surface, borderWidth: 2, gapWidth: 2 }, upperLabel: { show: true } }, { itemStyle: { borderColor: t.surface, borderWidth: 1, gapWidth: 1 } }] }] }); });
-  g.append(c1.root, c2.root);
+        label: { show: true, formatter: p => p.name + "\n" + fmt0(p.value), fontSize: 12, overflow: "truncate", position: "insideTopLeft", padding: 5 }, upperLabel: { show: true, height: 24, color: t.ink, fontWeight: 600, fontSize: 12 },
+        levels: [{ itemStyle: { borderColor: t.surface, borderWidth: 0, gapWidth: 3 }, upperLabel: { show: false } }, { itemStyle: { borderColor: t.surface, borderWidth: 2, gapWidth: 2 }, upperLabel: { show: true } }, { itemStyle: { borderColor: t.surface, borderWidth: 1, gapWidth: 1 } }] }] }); });
+  g.append(c2.root);
 
   // category by period heatmap, and the day-of-week pattern
   const present = GROUPS.filter(gp => B.some(b => b.g[gp] > 0)), cells = [];
