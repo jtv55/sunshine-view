@@ -4,7 +4,7 @@
 function spending() {
   const page = $("#page"), sc = scopeWindow(scopeState.spending), B = bucketData(sc), unit = sc.unit;
   const rows = inWin(D.spend, sc.lo, sc.hi), total = spendOf(rows), prevRows = sc.prev.ok ? inWin(D.spend, sc.prev.lo, sc.prev.hi) : null, prevTotal = prevRows ? spendOf(prevRows) : 0;
-  const byCat = new Map(GROUPS.map(gp => [gp, sum(B, b => b.g[gp])])), vt = [...groupBy(rows, t => t.v)].map(([v, ts]) => ({ v, g: ts[0].g, c: ts[0].c, s: spendOf(ts), n: ts.length })).filter(x => x.s > 0).sort((a, b) => b.s - a.s);
+  const byCat = new Map(GROUPS.map(gp => [gp, sum(B, b => b.g[gp])])), vt = [...groupBy(rows, t => t.v)].map(([v, ts]) => ({ v, g: ts[0].g, c: ts[0].c, s: spendOf(ts), n: ts.filter(t => t.amt < 0).length })).filter(x => x.s > 0).sort((a, b) => b.s - a.s);
   const topCat = topN(byCat, 1)[0], topV = vt[0], buys = rows.filter(t => t.amt < 0), weeks = Math.max(1, sc.span / 7);
   const scopeText = sc.key === "all" ? `all ${Math.round(sc.span / 7)} weeks of data` : `the last ${sc.label}`;
 
@@ -47,34 +47,39 @@ function spending() {
         levels: [{ itemStyle: { borderColor: t.surface, borderWidth: 0, gapWidth: 3 } }, { itemStyle: { borderColor: t.surface, borderWidth: 2, gapWidth: 2 }, upperLabel: { show: true } }, { itemStyle: { borderColor: t.surface, borderWidth: 1, gapWidth: 1 } }] }] }); });
   g.append(c1.root, c2.root);
 
-  // category by period heatmap
+  // category by period heatmap, and the day-of-week pattern
   const present = GROUPS.filter(gp => B.some(b => b.g[gp] > 0)), cells = [];
   present.forEach((gp, y) => B.forEach((b, x) => cells.push([x, y, Math.round(b.g[gp])])));
-  const c3 = card({ title: `Category by ${unit}`, sub: "Darker = more spend in that period", span: 12, height: Math.max(260, 110 + present.length * 34),
+  const c3 = card({ title: `Category by ${unit}`, sub: "Darker = more spend in that period", span: 7, height: 380,
     table: () => ({ cols: ["Category", ...B.map(b => b.label)], num: B.map((_, i) => i + 1), rows: present.map(gp => [gp, ...B.map(b => fmt0(b.g[gp]))]) }) });
   c3.draw(() => { const t = T(), mxv = Math.max(1, ...cells.map(x => x[2]));
-    return baseOpt({ legend: { show: false }, grid: { left: 110, right: 150, top: 8, bottom: 30 },
+    return baseOpt({ legend: { show: false }, grid: { left: 110, right: 14, top: 8, bottom: 78 },
       tooltip: { ...baseOpt().tooltip, trigger: "item", formatter: p => `<b>${present[p.value[1]]}</b>, ${esc(B[p.value[0]].long)}<br><b>${fmt0(p.value[2])}</b>` },
-      xAxis: { type: "category", data: B.map(b => b.label), ...axisStyle(), splitArea: { show: false }, splitLine: { show: false }, axisLabel: { color: t.muted, fontSize: 11, interval: 0 } },
+      xAxis: { type: "category", data: B.map(b => b.label), ...axisStyle(), splitArea: { show: false }, splitLine: { show: false }, axisLabel: { color: t.muted, fontSize: 11, interval: B.length > 14 ? 1 : 0, rotate: B.length > 8 ? 45 : 0 } },
       yAxis: { type: "category", data: present, inverse: true, ...axisStyle(), splitLine: { show: false }, axisLabel: { color: t.ink2, fontSize: 12 } },
-      visualMap: { min: 0, max: mxv, orient: "vertical", right: 8, top: "middle", itemWidth: 12, itemHeight: 140, calculable: false, text: [fmt0(mxv), "$0"], textStyle: { color: t.muted, fontSize: 11 }, inRange: { color: t.seq } },
+      visualMap: { min: 0, max: mxv, orient: "horizontal", left: "center", bottom: 4, itemWidth: 12, itemHeight: 150, calculable: false, text: [fmt0(mxv), "$0"], textStyle: { color: t.muted, fontSize: 11 }, inRange: { color: t.seq } },
       series: [{ type: "heatmap", data: cells, itemStyle: { borderColor: t.surface, borderWidth: 2, borderRadius: 3 }, emphasis: { itemStyle: { borderColor: t.ink } } }] }); });
-  g.append(c3.root);
+  g.append(c3.root, weekdayHeatCard(rows));
 
   // movers vs the previous period, and the largest purchases
   g.append(sc.prev.ok ? moversCard({ curLo: sc.lo, curHi: sc.hi, prevLo: sc.prev.lo, prevHi: sc.prev.hi, title: `Biggest movers vs the ${sc.label} before`, curName: "This period", prevName: "Prior period", span: 6, height: 320 })
     : h("div", { class: "card span-6" }, h("h2", {}, "Biggest movers"), h("div", { class: "note" }, `Needs a full earlier ${sc.label} of data to compare against. Pick a shorter range to see movers.`)),
     largestCard(sc.lo, sc.hi, { title: `Largest purchases, ${sc.key === "all" ? "all data" : sc.label}` }));
 
-  // vendor x period table with shading
-  const vrows = vt.slice(0, 14).map(x => ({ ...x, per: B.map(b => spendOf(inWin(rows, b.lo, b.hi).filter(t => t.v === x.v))) })), mx = Math.max(1, ...vrows.flatMap(r => r.per)), nb = B.length;
-  g.append(h("div", { class: "card span-12" }, h("div", { class: "hd" }, h("div", {}, h("h2", {}, `Top vendors by ${unit}`), h("div", { class: "sub" }, "Shading shows relative size within the table"))),
-    h("div", { class: "tablev", style: "max-height:none" }, (() => {
-      const t = tableEl(["Vendor", "Category", ...B.map(b => b.label), "Total", `vs prior ${unit}`], [], B.map((_, i) => i + 2).concat([nb + 2, nb + 3]));
-      t.tBodies[0].append(...vrows.map(r => h("tr", {}, h("td", {}, r.v), h("td", {}, catChip(r.c)),
-        ...r.per.map(v => h("td", { class: "n", style: `background:color-mix(in srgb, var(--accent) ${Math.round(v / mx * 55)}%, transparent)` }, v ? fmt0(v) : "-")),
-        h("td", { class: "n" }, h("b", {}, fmt0(r.s))), h("td", { class: "n" }, nb > 1 && r.per[nb - 2] ? pct((r.per[nb - 1] - r.per[nb - 2]) / r.per[nb - 2]) : nb > 1 ? "new" : "-"))));
-      return t; })())));
+  // vendor leaderboard: by period, with visits and average ticket; sortable by spend or by visits
+  const nb = B.length, sortSel = h("select", { "aria-label": "Sort vendors by" }, h("option", { value: "s" }, "By spend"), h("option", { value: "n" }, "By visits"));
+  const head = ["Vendor", "Category", "Visits", "Avg ticket", ...B.map(b => b.label), "Total", `vs prior ${unit}`], numCols = [2, 3, ...B.map((_, i) => i + 4), nb + 4, nb + 5];
+  const vtable = tableEl(head, [], numCols), vbody = vtable.tBodies[0];
+  const drawVendors = () => {
+    const key = sortSel.value, top = [...vt].sort((a, b) => b[key] - a[key] || b.s - a.s).slice(0, 14);
+    const vrows = top.map(x => ({ ...x, per: B.map(b => spendOf(inWin(rows, b.lo, b.hi).filter(t => t.v === x.v))) })), mx = Math.max(1, ...vrows.flatMap(r => r.per));
+    vbody.replaceChildren(...vrows.map(r => h("tr", {}, h("td", {}, r.v), h("td", {}, catChip(r.c)), h("td", { class: "n" }, String(r.n)), h("td", { class: "n" }, r.n ? fmt0(r.s / r.n) : "-"),
+      ...r.per.map(v => h("td", { class: "n", style: `background:color-mix(in srgb, var(--accent) ${Math.round(v / mx * 55)}%, transparent)` }, v ? fmt0(v) : "-")),
+      h("td", { class: "n" }, h("b", {}, fmt0(r.s))), h("td", { class: "n" }, nb > 1 && r.per[nb - 2] ? pct((r.per[nb - 1] - r.per[nb - 2]) / r.per[nb - 2]) : nb > 1 ? "new" : "-"))));
+  };
+  sortSel.addEventListener("change", drawVendors); drawVendors();
+  g.append(h("div", { class: "card span-12" }, h("div", { class: "hd" }, h("div", {}, h("h2", {}, `Top vendors by ${unit}`), h("div", { class: "sub" }, "Shading shows relative size within the table. Visits are purchases in the range.")), sortSel),
+    h("div", { class: "tablev", style: "max-height:none" }, vtable)));
 
   // a small chart per top vendor
   const sm = h("div", { class: "sm" });
@@ -88,4 +93,22 @@ function spending() {
   });
 
   page.append(reconSection(sc.lo, sc.hi, sc.key === "all" ? "All data" : `Last ${sc.label}`));
+}
+
+/* Which days of the week, and which weeks of the month, the money leaves. Dates only: banks don't report the time of day. */
+function weekdayHeatCard(rows) {
+  const names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], grid = names.map(() => Array(5).fill(0));
+  rows.forEach(t => { const d = new Date(t.day * 86400000), r = (d.getUTCDay() + 6) % 7, w = Math.min(4, Math.floor((d.getUTCDate() - 1) / 7)); grid[r][w] += t.s; });
+  const totals = grid.map(r => sum(r)), cells = []; grid.forEach((r, y) => r.forEach((v, x) => cells.push([x, y, Math.round(v)])));
+  const best = totals.indexOf(Math.max(...totals));
+  const c = card({ title: "When you spend", span: 5, height: 380, sub: rows.length ? `${names[best]} is the heaviest day (${fmt0(totals[best])}). Day of week by week of the month. Banks only report dates, not time of day.` : "No spending in this range.",
+    table: () => ({ cols: ["Day", "Days 1-7", "8-14", "15-21", "22-28", "29-31", "Total"], num: [1, 2, 3, 4, 5, 6], rows: names.map((n, i) => [n, ...grid[i].map(fmt0), fmt0(totals[i])]) }) });
+  c.draw(() => { const t = T(), mxv = Math.max(1, ...cells.map(x => x[2]));
+    return baseOpt({ legend: { show: false }, grid: { left: 92, right: 14, top: 8, bottom: 78 },
+      tooltip: { ...baseOpt().tooltip, trigger: "item", formatter: p => `<b>${names[p.value[1]]}</b>, days ${p.value[0] * 7 + 1}-${Math.min(31, p.value[0] * 7 + 7)}<br><b>${fmt0(p.value[2])}</b>` },
+      xAxis: { type: "category", data: ["1-7", "8-14", "15-21", "22-28", "29-31"], name: "day of month", nameLocation: "middle", nameGap: 26, nameTextStyle: { color: t.muted, fontSize: 11 }, ...axisStyle(), splitLine: { show: false }, axisLabel: { color: t.muted, fontSize: 11 } },
+      yAxis: { type: "category", data: names.map((n, i) => `${n}  ${fmt0(totals[i])}`), inverse: true, ...axisStyle(), splitLine: { show: false }, axisLabel: { color: t.ink2, fontSize: 12 } },
+      visualMap: { min: 0, max: mxv, orient: "horizontal", left: "center", bottom: 4, itemWidth: 12, itemHeight: 130, calculable: false, text: [fmt0(mxv), "$0"], textStyle: { color: t.muted, fontSize: 11 }, inRange: { color: t.seq } },
+      series: [{ type: "heatmap", data: cells, itemStyle: { borderColor: t.surface, borderWidth: 2, borderRadius: 3 }, emphasis: { itemStyle: { borderColor: t.ink } } }] }); });
+  return c.root;
 }

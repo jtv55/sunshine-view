@@ -144,3 +144,5 @@ td select { padding: 4px 6px; font-size: 13px; max-width: 170px; }
 details.audit > summary { cursor: pointer; padding: 2px 0 8px; } details.audit { padding-top: 12px; }
 .span-12 > .kpis { margin: 0; }
 .nw { white-space: nowrap; }
+.row-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.warnline { color: var(--ink); font-weight: 600; padding-top: 4px; }

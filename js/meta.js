@@ -45,38 +45,6 @@ function unrecognizedGroups() {
     accts: [...new Set(ts.map(t => t.a))], channels: [...new Set(ts.map(channelOf))], ends: [...new Set(ts.map(cardEnding).filter(Boolean))],
     first: Math.min(...ts.map(t => t.day)), last: Math.max(...ts.map(t => t.day)) })).sort((a, b) => b.total - a.total);
 }
-const categoryChoices = () => [...new Set([...PREF.slice(0, 18), ...D.spend.map(t => t.c)])].filter(c => !["Uncategorized", "Transfers", "Income", "Investing", "Card spending (no detail)"].includes(c)).sort();
-function ruleFor(g, cat) {
-  const tokens = g.v.toLowerCase().replace(/[^a-z0-9' ]+/g, " ").split(/\s+/).filter(Boolean).slice(0, 3);
-  return JSON.stringify([tokens.map(escRe).join(" ?"), g.v, cat]);
-}
-
-function unrecognizedCard() {
-  const groups = unrecognizedGroups(), cats = categoryChoices(), chosen = new Map();
-  const root = h("div", { class: "card span-12" });
-  const copyAll = h("button", { class: "primary", disabled: "" }, "Copy chosen rules");
-  const refresh = () => { const n = chosen.size; copyAll.textContent = n ? `Copy ${n} chosen rule${n === 1 ? "" : "s"}` : "Copy chosen rules"; copyAll.toggleAttribute("disabled", !n); };
-  copyAll.addEventListener("click", () => copyText([...chosen.values()].join(",\n"), copyAll));
-  root.append(h("div", { class: "hd" }, h("div", {}, h("h2", {}, "Unrecognized merchants", h("span", { class: "count" }, String(groups.length))),
-    h("div", { class: "sub" }, "No rule knows these yet. Pick a category and copy the rule into config/vendors.json (or paste it to Claude). The next run re-files every past transaction.")), copyAll));
-  if (!groups.length) { root.append(h("div", { class: "note ok" }, "Every merchant in the data has a category.")); return root; }
-  const body = tableEl(["Merchant", "What the bank prints", "Where it hit", "How it was paid", "Charges", "Total", "Category", ""], [], [4, 5]);
-  groups.slice(0, 30).forEach(g => {
-    const guess = g.channels.includes("Online bill pay / ACH") ? "Bills & Utilities" : "";
-    const sel = h("select", { "aria-label": `Category for ${g.v}` }, h("option", { value: "" }, "Choose..."), cats.map(c => h("option", { value: c, selected: c === guess ? "" : null }, c)));
-    const btn = h("button", { class: "ghost", disabled: "" }, "Copy rule");
-    const sync = () => { const cat = sel.value; btn.toggleAttribute("disabled", !cat); if (cat) chosen.set(g.v, ruleFor(g, cat)); else chosen.delete(g.v); refresh(); };
-    sel.addEventListener("change", sync); btn.addEventListener("click", () => copyText(ruleFor(g, sel.value) + ",", btn));
-    const lines = h("div", { class: "rawlines" }, g.ts.slice(0, 12).map(t => h("div", {}, `${isoOf(t.day)}  ${fmt2(t.s)}  ${acctShort(t.a)}  ${t.desc}`)));
-    const ends = g.ends.length ? ` (card ending ${g.ends.join(", ")})` : "";
-    body.tBodies[0].append(h("tr", {}, h("td", {}, h("details", {}, h("summary", {}, g.v), lines)), h("td", { class: "muted", title: g.ts[0].desc }, g.ts[0].desc.slice(0, 54) + (g.ts[0].desc.length > 54 ? "..." : "")),
-      h("td", {}, g.accts.map(acctShort).join(", ")), h("td", {}, g.channels.join(", ") + ends), h("td", { class: "n" }, String(g.n)), h("td", { class: "n" }, fmt0(g.total)), h("td", {}, sel), h("td", {}, btn)));
-    if (guess) sync();
-  });
-  root.append(h("div", { class: "tablev", style: "max-height:560px" }, body), h("div", { class: "note" }, `Showing the ${Math.min(30, groups.length)} largest of ${groups.length}. A rule is a case-insensitive pattern matched against the bank's description.`));
-  return root;
-}
-
 /* ---------- unreconciled lines ---------- */
 function paydownDiagnosis(t, firstDay) {
   const issuer = issuerOf(t.desc);
@@ -180,10 +148,11 @@ function meta() {
     kpi("Items to review", String(open), open ? "merchants and unreconciled lines below" : "nothing outstanding")));
 
   const section = (title, sub, nodes) => { page.append(sectionHead(title, sub)); const g = h("div", { class: "grid" }); nodes.forEach(n => g.append(n)); page.append(g); };
-  section("Needs your decision", "Merchants no rule recognizes", [unrecognizedCard()]);
+  section("Needs your decision", "Merchants no rule recognizes, and merchants filed under the wrong category", [unrecognizedCard(), recategorizeCard()]);
   section("Unreconciled lines", "Money movements the data can't tie together", unreconciledCards());
   section("Cards and payment methods", "How each card and account is used", cardStatsCards());
   section("SimpleFIN refreshes", "How often, how fresh, how much of the daily allowance", [freshnessCard(), ...refreshCards()]);
   section("GitHub activity", "This repository's own history", githubCards());
+  section("Data forensics", "Does the ledger look like real money?", [benfordCard()]);
   section("Ledger and rules", "How the data and the merchant rules are holding up", ledgerCards());
 }
