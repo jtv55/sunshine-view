@@ -53,4 +53,5 @@ function accounts() {
     h("ul", { class: "attn" }, checks.map(it => h("li", {}, h("span", { class: "gl " + it.lvl, "aria-hidden": "true" }, glyph[it.lvl]), h("span", { class: "sr" }, word[it.lvl] + ": "), h("span", { html: it.html }))))));
 
   page.append(reconSection(sc.lo, sc.hi, sc.key === "all" ? "All data" : `Last ${sc.label}`, { open: true }));
+  page.append(h("div", { class: "grid", style: "margin-top:22px" }, ledgerCard(sc)));
 }

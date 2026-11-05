@@ -148,3 +148,8 @@ details.audit > summary { cursor: pointer; padding: 2px 0 8px; } details.audit {
 .warnline { color: var(--ink); font-weight: 600; padding-top: 4px; }
 .nextstep { margin: 0 0 10px; padding: 10px 14px; border: 1px solid var(--s4); border-radius: 10px; background: color-mix(in srgb, var(--s4) 14%, transparent); display: flex; gap: 6px 12px; align-items: center; flex-wrap: wrap; }
 .linkbtn { display: inline-block; padding: 5px 12px; border-radius: 999px; background: var(--ink); color: var(--surface); text-decoration: none; font-size: 13px; white-space: nowrap; }
+/* ledger */
+.ledger-controls { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 10px; } .ledger-sum { margin: 0 0 8px; font-size: 13px; }
+.sortbtn { all: unset; cursor: pointer; font: inherit; color: inherit; } .sortbtn:hover { color: var(--ink); } .sortbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+th[aria-sort="ascending"] .sortbtn::after { content: " \25b2"; font-size: 9px; } th[aria-sort="descending"] .sortbtn::after { content: " \25bc"; font-size: 9px; }
+.ledger-more { text-align: center; margin: 10px 0 2px; }
