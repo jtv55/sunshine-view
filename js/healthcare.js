@@ -122,6 +122,29 @@ function healthcare() {
     g.append(h("div", { class: "card span-12" }, h("div", { class: "hd" }, h("div", {}, h("h2", {}, "What each plan costs you in four kinds of year"), h("div", { class: "sub" }, "Out of pocket for care and prescriptions, using the plan grids and typical prices. " + premLine))), h("div", { class: "tablev", style: "max-height:none" }, tbl),
       h("div", { class: "note" }, "Net vs Gold: positive means the HSA plan costs more that year. 'After seed + tax' subtracts the employer's HSA deposit and the tax you save paying bills with pre-tax HSA dollars.")));
 
+    /* every option side by side, for the whole household */
+    const hhd = cfg.household, who = hhd ? `you, your wife and ${hhd.kids} kid${hhd.kids === 1 ? "" : "s"}` : "your household";
+    const fsaE = Math.min(cfg.fsa.health, Math.ceil(typical.g.cost / 100) * 100), premG = S.premGold * pays, premQ = S.premQ * pays;
+    const fsaNet = oop => oop - rate * Math.min(oop, fsaE) + Math.max(0, fsaE - oop) * (1 - rate);
+    const opts = [
+      { name: "Gold $0, no tax account", cost: oop => premG + oop.g, worst: premG + G.oop[tier], upfront: 0, kept: 0, taxSaved: 0 },
+      { name: `Gold $0 + health FSA (${fmt0(fsaE)})`, cost: oop => premG + fsaNet(oop.g), worst: premG + fsaNet(G.oop[tier]), upfront: 0, kept: 0, taxSaved: rate * fsaE },
+      { name: `HSA plan + starter HSA (${fmt0(floorYr)}/yr)`, cost: oop => premQ + hcNetOutOfPocket(oop.q, seed, floorYr, rate).net, worst: premQ + hcNetOutOfPocket(Q.oop[tier], seed, floorYr, rate).net, upfront: 0, kept: seed + floorYr, taxSaved: rate * floorYr },
+      { name: `HSA plan + recommended HSA (${fmt0(recAnnual)}/yr)`, cost: oop => premQ + hcNetOutOfPocket(oop.q, seed, recAnnual, rate).net, worst: premQ + hcNetOutOfPocket(Q.oop[tier], seed, recAnnual, rate).net, upfront: 0, kept: seed + recAnnual, taxSaved: rate * recAnnual }];
+    const optRows = opts.map(o => [o.name, ...rows.map(r => fmt0(o.cost({ g: r.g.cost, q: r.q.cost }))), fmt0(o.worst), o.taxSaved ? fmt0(o.taxSaved) : "none"]);
+    const best = rows.map((r, i) => opts.map(o => o.cost({ g: r.g.cost, q: r.q.cost })).reduce((bi, v, j, a) => v < a[bi] ? j : bi, 0));
+    g.append(h("div", { class: "card span-12" }, h("div", { class: "hd" }, h("div", {}, h("h2", {}, `Your options, for ${who}`), h("div", { class: "sub" }, `Total cost for the year by option: premiums${havePrem ? "" : " (not entered yet, so $0)"} plus what you pay for care, after the employer's HSA deposit and tax savings. Lower is better.`))),
+      h("div", { class: "tablev", style: "max-height:none" }, tableEl(["Option", ...rows.map(r => r.sc.name), "Worst case (out-of-pocket max)", "Tax saved by the account"], optRows, [1, 2, 3, 4, 5, 6])),
+      h("div", { class: "note" }, "Cheapest in each kind of year: " + rows.map((r, i) => `${r.sc.name}: ${opts[best[i]].name}`).join("; ") + ". HSA money you don't spend stays yours and rolls over; FSA money you don't spend is forfeited.")));
+    const trade = [
+      ["Gold $0, no tax account", "Predictable copays, no deductible, nothing to manage. Lowest worst-case surprise on any single visit.", "Highest worst-case exposure (" + fmt0(G.oop[tier]) + " family limit), no employer deposit, no tax break on the bills you pay.", "You expect lots of care, hate bills that arrive before insurance helps, or can't spare cash for the deductible."],
+      [`Gold $0 + health FSA`, "Pre-tax dollars for copays you will pay anyway, spendable on day one of the year.", `Use-it-or-lose-it: unspent money is forfeited. It blocks HSA contributions, so you can't switch half-way and still fund one.`, "You choose Gold and want a small tax break; elect only what you are sure to spend."],
+      [`HSA plan + starter HSA`, `The employer deposit of ${fmt0(seed)} covers ${Math.round(seed / Q.deductible[tier] * 100)}% of the deductible, so you start with money in the account.`, `Costs more per visit until the ${fmt0(Q.deductible[tier])} deductible is met; less cushion if a major event comes early.`, "You want the plan's low out-of-pocket maximum without committing much of your paycheck."],
+      [`HSA plan + recommended HSA`, `Lowest worst-case (${fmt0(Q.oop[tier])} family limit); every dollar is pre-tax going in, tax-free growing and tax-free for medical costs; unspent money is yours forever and can be invested.`, `Cash leaves each paycheck (about ${fmt2(hit)} of take-home); you must keep coverage free of other plans, and your wife can't use a general-purpose FSA.`, "You can absorb a bill early in the year and want the best tax treatment."],
+      ["Add-on: dependent-care FSA", `Up to ${fmt0(cfg.fsa.dependent_care)} pre-tax for childcare, summer camp and after-school care for kids under 13. Works with any option above.`, "Forfeited if unspent; only for care that lets you and your wife work.", `Worth about ${fmt0(cfg.fsa.dependent_care * rate)} a year in taxes if you really spend it, so check what childcare costs ${hhd ? "your " + hhd.kids + " kids" : "you"} actually run.`]];
+    g.append(h("div", { class: "card span-12" }, h("div", { class: "hd" }, h("div", {}, h("h2", {}, "Trade-offs at a glance"))),
+      h("div", { class: "tablev", style: "max-height:none" }, tableEl(["Option", "What you gain", "What you give up", "Best if"], trade))));
+
     /* curve: out of pocket as care gets more expensive */
     const copayShareG = typical.g.allowed ? typical.g.cost / typical.g.allowed : .2, copayShareQ = typical.q.allowed > Q.deductible[tier] ? (typical.q.cost - Q.deductible[tier]) / (typical.q.allowed - Q.deductible[tier]) : .1;
     const xs = []; for (let s = 0; s <= 30000; s += 1000) xs.push(s);
