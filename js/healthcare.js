@@ -27,10 +27,10 @@ function hcNetOutOfPocket(oop, seed, contrib, rate) {
 }
 
 /* Pay periods per year from how often income lands (biggest payer, median gap in days). */
-const HC_EMPLOYER = /hcr/i; // paychecks come from HCR
+const HC_EMPLOYER = /payroll/i; // paychecks are ACH credits labelled PAYROLL (the HCR credits are separate, irregular payments)
 function hcPaychecks() {
   const inc = D.income.filter(t => t.amt > 200), hcr = inc.filter(t => HC_EMPLOYER.test(t.v) || HC_EMPLOYER.test(t.desc));
-  return hcr.length >= 4 ? { list: hcr, from: "HCR" } : { list: inc, from: null };
+  return hcr.length >= 4 ? { list: hcr, from: "payroll" } : { list: inc, from: null };
 }
 function hcInferPays() {
   const pc = hcPaychecks(), by = groupBy(pc.list, t => t.v), top = [...by].sort((a, b) => b[1].length - a[1].length)[0];
@@ -40,6 +40,11 @@ function hcInferPays() {
 }
 
 /* Kept per month (income minus spending) over the last complete months, to judge what a contribution can safely be. */
+function hcPayNet() {
+  const pc = hcPaychecks().list, by = [...groupBy(pc, t => t.v)].sort((a, b) => b[1].length - a[1].length)[0];
+  if (!by || by[1].length < 4) return null;
+  const a = by[1].map(t => t.amt).sort((x, y) => x - y); return a[Math.floor(a.length / 2)];
+}
 function hcMonthlySurplus() {
   const ms = completeMonths(3);
   if (!ms.length) return null;
@@ -86,7 +91,8 @@ function healthcare() {
     const surplus = hcMonthlySurplus(), keepYr = surplus == null ? null : surplus * 12;
     const roundPay = v => Math.round(v / 5) * 5, perPay = yr => yr / pays;
     const floorYr = Math.min(maxEmp, Math.max(deductGap, typicalGap));
-    const affordYr = keepYr == null ? maxEmp : Math.max(0, 0.5 * keepYr / (1 - rate));
+    const payNet = hcPayNet(), takeHomeCap = payNet ? 0.1 * payNet * pays / (1 - rate) : null; // a contribution is affordable if its take-home hit is under 10% of a paycheck
+    const affordYr = takeHomeCap != null ? takeHomeCap : keepYr == null ? maxEmp : Math.max(0, 0.5 * keepYr / (1 - rate));
     const recYr = Math.min(maxEmp, Math.max(floorYr, affordYr)), recPay = Math.min(maxEmp / pays, Math.max(roundPay(perPay(recYr)), 0)), recAnnual = recPay * pays;
     const fullMax = recAnnual >= maxEmp - pays * 2.5;
     const hit = recPay * (1 - rate), taxYr = recAnnual * rate;
@@ -100,7 +106,7 @@ function healthcare() {
 
     const why = [`<b>Floor ${fmt2(floorYr / pays)}/paycheck (${fmt0(floorYr)}/yr).</b> The employer seed of ${fmt0(seed)} already covers ${seed >= Q.deductible[tier] ? "the whole deductible" : Math.round(seed / Q.deductible[tier] * 100) + "% of the deductible"}; this tops up to a typical year's ${fmt0(typical.q.cost)} bill.`,
       `<b>Ceiling ${fmt2(maxEmp / pays)}/paycheck (${fmt0(maxEmp)}/yr).</b> Seed plus this equals ${fmt0(limit)}. The worst case on this plan is ${fmt0(Q.oop[tier])} out of pocket, so ${fmt0(worst)} from you plus the seed covers even that, and unspent money stays yours, invested if you like, tax-free for medical costs.`,
-      keepYr == null ? "Not enough history to judge affordability from your accounts." : `<b>Your budget:</b> you've kept about ${fmt0(surplus)} a month lately (income minus spending). The recommendation is capped at about half of what you keep, after tax savings, unless that's below the floor.`];
+      payNet ? `<b>Your budget:</b> a typical paycheck is ${fmt0(payNet)}, so the ${fmt2(hit)} take-home drop is ${(hit / payNet * 100).toFixed(1)}% of it.` + (surplus != null && surplus < 0 ? ` Months with big one-off spending have left you ${fmt0(-surplus)} a month short lately, so keep cash for those before adding more than you need.` : surplus != null ? ` You've kept about ${fmt0(surplus)} a month lately.` : "") : "Not enough history to judge affordability from your accounts."];
     if (recAnnual < maxEmp - 1) why.push(`<b>Room to grow:</b> if your emergency cash covers 3 to 6 months of bills, raising it to ${fmt2(maxEmp / pays)}/paycheck is the best-value place for extra savings: pre-tax going in, tax-free growing, tax-free for medical costs.`);
     wrap.append(h("div", { class: "card", style: "margin-top:18px" }, h("div", { class: "hd" }, h("div", {}, h("h2", {}, "How the recommendation is built"))), h("ul", { class: "attn" }, why.map(x => h("li", {}, h("span", { html: x }))))));
 
