@@ -53,7 +53,7 @@ function hcMonthlySurplus() {
 }
 
 function hcState(cfg) {
-  const def = { tier: "family", pays: hcInferPays() || 26, premGold: 0, premQ: 0, fed: 22, state: 3.07, fica: 7.65, age55: false };
+  const def = { tier: "family", pays: hcInferPays() || 26, premGold: 0, premQ: 0, fed: 22, state: 3.07, fica: 7.65, age55: false, bonus: 0, ...(cfg.defaults || {}) };
   try { return { ...def, ...(JSON.parse(localStorage.getItem(HC_KEY) || "{}")) }; } catch { return def; }
 }
 
@@ -74,7 +74,7 @@ function healthcare() {
   const inferred = hcInferPays();
   page.append(h("div", { class: "card" }, h("div", { class: "hd" }, h("div", {}, h("h2", {}, "Your inputs"), h("div", { class: "sub" }, "Premiums are per paycheck, from the enrollment portal. Saved in this browser only." + (inferred ? ` Pay periods are inferred from your ${hcPaychecks().from || "income"} deposits (${inferred} per year).` : "")))),
     h("div", { class: "ledger-controls" }, h("label", { class: "muted", style: "display:flex;flex-direction:column;gap:4px;font-size:12px" }, "Coverage", tierSel), num("pays", "Paychecks per year"), num("premGold", "Gold $0 premium / paycheck", { step: "0.01" }), num("premQ", "HSA plan premium / paycheck", { step: "0.01" }),
-      num("fed", "Federal tax bracket %"), num("state", "State tax %", { step: "0.01" }), num("fica", "Payroll tax (FICA) %", { step: "0.01" }), h("label", { class: "muted", style: "display:flex;gap:6px;align-items:center;font-size:12px" }, age, "Age 55+ (catch-up)"))));
+      num("fed", "Federal tax bracket %"), num("state", "State tax %", { step: "0.01" }), num("bonus", "Annual bonus % of salary"), num("fica", "Payroll tax saved %", { step: "0.01" }), h("label", { class: "muted", style: "display:flex;gap:6px;align-items:center;font-size:12px" }, age, "Age 55+ (catch-up)"))));
   page.append(results);
 
   function refresh() {
@@ -151,14 +151,16 @@ function healthcare() {
     }
 
     /* eligibility and traps */
-    const warn = [
+    const early = Math.min(6, pays), ssSpread = .062 * recAnnual * early / pays, ssFront = .062 * recAnnual;
+    const bonusNote = S.bonus > 0 ? `<b>Your bonus.</b> A ${S.bonus}% bonus can push your pay past the Social Security wage base (about $185,000) early in the year, after which HSA dollars no longer save the 6.2% Social Security tax, so the payroll-tax saving above is an average. Putting the year's amount into the first ${early} paychecks instead of spreading it would save about ${fmt0(ssFront - ssSpread)} more, but each of those paychecks would drop about ${fmt0(recAnnual / early * (1 - rate))} instead of ${fmt0(hit)}.` : null;
+    const warn = [bonusNote,
       `<b>Eligibility.</b> You can only put money in the HSA while covered by the HSA plan and nothing else that pays medical bills first. Your wife can't also be on a general health FSA, a non-HSA plan, or Medicare. If she has other coverage, tell me and I'll rerun this.`,
       `<b>FSA.</b> A regular health FSA (${fmt0(cfg.fsa.health)} limit) blocks HSA contributions. A limited-purpose (dental and vision) FSA is allowed, and the dependent-care FSA (${fmt0(cfg.fsa.dependent_care)}) is unaffected.`,
       `<b>One limit for the household.</b> The ${fmt0(cfg.hsa.irs_limit.family)} family limit covers both of you together, including the employer seed. If your wife has her own HSA, split it.`,
       `<b>Pennsylvania.</b> Payroll HSA contributions are excluded from PA withholding (Dept. of Revenue ruling PIT-06-005), so the state rate above is included. The ruling is old; confirm on your tax return.`,
       `<b>Deadlines.</b> Enrollment closes ${cfg.enrollment.closes}; coverage starts ${cfg.enrollment.effective}. You can change the payroll amount during the year, so starting at the recommendation and adjusting is fine.`,
       `<b>Limits.</b> Estimates use typical prices and your plan grids. Real bills vary, and out-of-network care costs more. This is not tax or medical advice.`];
-    g.append(h("div", { class: "card span-12" }, h("div", { class: "hd" }, h("div", {}, h("h2", {}, "Before you enroll"))), h("ul", { class: "attn" }, warn.map(x => h("li", {}, h("span", { html: x }))))));
+    g.append(h("div", { class: "card span-12" }, h("div", { class: "hd" }, h("div", {}, h("h2", {}, "Before you enroll"))), h("ul", { class: "attn" }, warn.filter(Boolean).map(x => h("li", {}, h("span", { html: x }))))));
     return wrap;
   }
   refresh();
