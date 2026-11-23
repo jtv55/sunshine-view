@@ -27,8 +27,13 @@ function hcNetOutOfPocket(oop, seed, contrib, rate) {
 }
 
 /* Pay periods per year from how often income lands (biggest payer, median gap in days). */
+const HC_EMPLOYER = /hcr/i; // paychecks come from HCR
+function hcPaychecks() {
+  const inc = D.income.filter(t => t.amt > 200), hcr = inc.filter(t => HC_EMPLOYER.test(t.v) || HC_EMPLOYER.test(t.desc));
+  return hcr.length >= 4 ? { list: hcr, from: "HCR" } : { list: inc, from: null };
+}
 function hcInferPays() {
-  const by = groupBy(D.income.filter(t => t.amt > 200), t => t.v), top = [...by].sort((a, b) => b[1].length - a[1].length)[0];
+  const pc = hcPaychecks(), by = groupBy(pc.list, t => t.v), top = [...by].sort((a, b) => b[1].length - a[1].length)[0];
   if (!top || top[1].length < 4) return null;
   const days = [...new Set(top[1].map(t => t.day))].sort((a, b) => a - b), gaps = days.slice(1).map((d, i) => d - days[i]).sort((a, b) => a - b), med = gaps[Math.floor(gaps.length / 2)];
   return med <= 9 ? 52 : med <= 17 ? 26 : med <= 20 ? 24 : 12;
@@ -62,7 +67,7 @@ function healthcare() {
   tierSel.value = S.tier; tierSel.addEventListener("change", () => { S.tier = tierSel.value; save(); refresh(); });
   const age = h("input", { type: "checkbox" }); age.checked = !!S.age55; age.addEventListener("change", () => { S.age55 = age.checked; save(); refresh(); });
   const inferred = hcInferPays();
-  page.append(h("div", { class: "card" }, h("div", { class: "hd" }, h("div", {}, h("h2", {}, "Your inputs"), h("div", { class: "sub" }, "Premiums are per paycheck, from the enrollment portal. Saved in this browser only." + (inferred ? ` Pay periods are inferred from your deposits (${inferred} per year).` : "")))),
+  page.append(h("div", { class: "card" }, h("div", { class: "hd" }, h("div", {}, h("h2", {}, "Your inputs"), h("div", { class: "sub" }, "Premiums are per paycheck, from the enrollment portal. Saved in this browser only." + (inferred ? ` Pay periods are inferred from your ${hcPaychecks().from || "income"} deposits (${inferred} per year).` : "")))),
     h("div", { class: "ledger-controls" }, h("label", { class: "muted", style: "display:flex;flex-direction:column;gap:4px;font-size:12px" }, "Coverage", tierSel), num("pays", "Paychecks per year"), num("premGold", "Gold $0 premium / paycheck", { step: "0.01" }), num("premQ", "HSA plan premium / paycheck", { step: "0.01" }),
       num("fed", "Federal tax bracket %"), num("state", "State tax %", { step: "0.01" }), num("fica", "Payroll tax (FICA) %", { step: "0.01" }), h("label", { class: "muted", style: "display:flex;gap:6px;align-items:center;font-size:12px" }, age, "Age 55+ (catch-up)"))));
   page.append(results);
@@ -125,6 +130,19 @@ function healthcare() {
         series: [line("Gold $0", goldAt, t.ink, 2), line("HSA plan", qAt, t.accent, 3)] });
     });
     g.append(c1.root);
+
+    /* what you actually pay today: spending filed under Health, by month, so the scenarios above can be checked against reality */
+    const hs = D.spend.filter(t => t.c === "Health"), ms = completeMonths(12), hm = ms.map(m => [m, sum(hs.filter(t => t.m === m), t => t.s)]);
+    if (ms.length) {
+      const tot = sum(hm, x => x[1]), cnt = hs.filter(t => ms.includes(t.m)).length, top = [...groupBy(hs.filter(t => ms.includes(t.m)), t => t.v)].map(([v, ts]) => [v, sum(ts, t => t.s), ts.length]).sort((a, b) => b[1] - a[1]).slice(0, 6);
+      const c2 = card({ title: `What you actually spent on Health, last ${ms.length} month${ms.length === 1 ? "" : "s"}`, span: 7, height: 260,
+        sub: `${fmt0(tot)} over ${cnt} charge${cnt === 1 ? "" : "s"}, about ${fmt0(tot / ms.length * 12)} a year at this pace. Compare with the four years above.`,
+        table: () => ({ cols: ["Month", "Health spending"], num: [1], rows: hm.map(([m, v]) => [m, fmt0(v)]) }) });
+      c2.draw(() => { const t = T(); return baseOpt({ grid: { left: 56, right: 10, top: 16, bottom: 28 }, tooltip: { ...baseOpt().tooltip, trigger: "axis", valueFormatter: v => fmt0(v) },
+        xAxis: { type: "category", data: hm.map(x => x[0]), ...axisStyle() }, yAxis: moneyAxis(), series: [{ type: "bar", data: hm.map(x => Math.round(x[1])), itemStyle: { color: t.accent } }] }); });
+      g.append(c2.root, h("div", { class: "card span-5" }, h("div", { class: "hd" }, h("div", {}, h("h2", {}, "Where it went"), h("div", { class: "sub" }, "Biggest payees in the Health category"))),
+        h("div", { class: "tablev", style: "max-height:none" }, tableEl(["Payee", "Charges", "Total"], top.map(([v, a, n]) => [v, String(n), fmt0(a)]), [1, 2]))));
+    }
 
     /* eligibility and traps */
     const warn = [
