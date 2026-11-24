@@ -1,4 +1,4 @@
-"use strict";
+﻿"use strict";
 /* Healthcare: open-enrollment plan comparison and an HSA contribution recommendation. Plan terms come from config/benefits.json
    (carried inside the encrypted data as meta.benefits); everything you type here stays in this browser (localStorage). Estimates, not advice. */
 
@@ -117,10 +117,10 @@ function healthcare() {
       return { name: r.sc.name, note: r.sc.note, gold: r.g.cost, q: r.q.cost, qNet: qn.net, diff: qn.net - r.g.cost, need };
     });
     const premLine = S.premPaid ? "Your employer pays the premiums on both plans, so only what you pay for care and the HSA matter." : havePrem ? `Premiums add ${fmt0(S.premGold * pays)} (Gold) vs ${fmt0(S.premQ * pays)} (HSA plan) a year, so the HSA plan is ${premDiffYr >= 0 ? fmt0(premDiffYr) + " cheaper" : fmt0(-premDiffYr) + " more expensive"} before any care.` : "Enter both premiums above to include them. Until then, the last column shows how much lower the Gold premium would have to be, per paycheck, for Gold to come out ahead.";
-    const tableCols = ["Year of care", "Gold $0 you pay", "HSA plan you pay", "HSA plan after seed + tax", "Net vs Gold", havePrem ? "Total with premiums" : "Gold wins only if its premium is"];
-    const tbl = tableEl(tableCols, trs.map(r => [`${r.name}: ${r.note}`, fmt0(r.gold), fmt0(r.q), fmt0(r.qNet), (r.diff <= 0 ? "-" : "+") + fmt0(Math.abs(r.diff)), havePrem ? `${r.diff - premDiffYr <= 0 ? "HSA plan" : "Gold"} ahead by ${fmt0(Math.abs(r.diff - premDiffYr))}` : (r.need >= 0 ? "Gold is already cheaper" : fmt2(-r.need) + " cheaper than the HSA plan's")]), [1, 2, 3, 4, 5]);
+    const tableCols = ["Year of care", "Gold $0 you pay", "HSA plan you pay", "HSA plan after seed + tax", "HSA plan vs Gold", havePrem ? "Total with premiums" : "Gold wins only if its premium is"];
+    const tbl = tableEl(tableCols, trs.map(r => [`${r.name}: ${r.note}`, fmt0(r.gold), fmt0(r.q), fmt0(r.qNet), (r.diff <= 0 ? "HSA plan saves " : "HSA plan costs ") + fmt0(Math.abs(r.diff)), havePrem ? `${r.diff - premDiffYr <= 0 ? "HSA plan" : "Gold"} ahead by ${fmt0(Math.abs(r.diff - premDiffYr))}` : (r.need >= 0 ? "Gold is already cheaper" : fmt2(-r.need) + " cheaper than the HSA plan's")]), [1, 2, 3, 4, 5]);
     g.append(h("div", { class: "card span-12" }, h("div", { class: "hd" }, h("div", {}, h("h2", {}, "What each plan costs you in four kinds of year"), h("div", { class: "sub" }, "Out of pocket for care and prescriptions, using the plan grids and typical prices. " + premLine))), h("div", { class: "tablev", style: "max-height:none" }, tbl),
-      h("div", { class: "note" }, "Net vs Gold: positive means the HSA plan costs more that year. 'After seed + tax' subtracts the employer's HSA deposit and the tax you save paying bills with pre-tax HSA dollars.")));
+      h("div", { class: "note" }, "'After seed + tax' subtracts the employer's HSA deposit and the tax you save paying bills with pre-tax HSA dollars.")));
 
     /* every option side by side, for the whole household */
     const hhd = cfg.household, who = hhd ? `you, your wife and ${hhd.kids} kid${hhd.kids === 1 ? "" : "s"}` : "your household";
@@ -144,6 +144,16 @@ function healthcare() {
       ["Add-on: dependent-care FSA", `Up to ${fmt0(cfg.fsa.dependent_care)} pre-tax for childcare, summer camp and after-school care for kids under 13. Works with any option above.`, "Forfeited if unspent; only for care that lets you and your wife work.", `Worth about ${fmt0(cfg.fsa.dependent_care * rate)} a year in taxes if you really spend it, so check what childcare costs ${hhd ? "your " + hhd.kids + " kids" : "you"} actually run.`]];
     g.append(h("div", { class: "card span-12" }, h("div", { class: "hd" }, h("div", {}, h("h2", {}, "Trade-offs at a glance"))),
       h("div", { class: "tablev", style: "max-height:none" }, tableEl(["Option", "What you gain", "What you give up", "Best if"], trade))));
+
+    /* the verdict, shown first */
+    const wins = best.filter(i => i >= 2).length, hsaBest = wins >= 3;
+    const saveTyp = opts[0].cost({ g: typical.g.cost, q: typical.q.cost }) - opts[3].cost({ g: typical.g.cost, q: typical.q.cost });
+    const verdict = h("div", { class: "card", style: "border-left:4px solid var(--accent, currentColor)" }, h("div", { class: "hd" }, h("div", {}, h("h2", {}, "The short answer"))),
+      h("p", { class: "lede", html: hsaBest
+        ? `<b>Take the HSA plan with family coverage and put ${fmt2(recPay)} into the HSA every paycheck (${fmt0(recAnnual)} a year).</b> It costs you less than Gold in ${wins} of 4 kinds of year${saveTyp > 0 ? `, about ${fmt0(saveTyp)} less in a typical year` : ""}, caps your worst year at ${fmt0(opts[3].worst)} instead of ${fmt0(opts[0].worst)}, and saves about ${fmt0(taxYr)} a year in taxes. Your take-home drops about ${fmt2(hit)} per paycheck.`
+        : `<b>On these numbers the Gold $0 plan comes out about even or ahead, so the HSA plan is not clearly better for you.</b> Check the table below before choosing.` }),
+      h("div", { class: "muted" }, "The trade: you pay full price for care until the deductible is met (your employer's HSA deposit covers most of it), and about " + fmt2(hit) + " leaves each paycheck. Enroll by " + cfg.enrollment.closes + "."));
+    wrap.prepend(verdict);
 
     /* curve: out of pocket as care gets more expensive */
     const copayShareG = typical.g.allowed ? typical.g.cost / typical.g.allowed : .2, copayShareQ = typical.q.allowed > Q.deductible[tier] ? (typical.q.cost - Q.deductible[tier]) / (typical.q.allowed - Q.deductible[tier]) : .1;
