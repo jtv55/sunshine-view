@@ -72,8 +72,8 @@ function healthcare() {
   tierSel.value = S.tier; tierSel.addEventListener("change", () => { S.tier = tierSel.value; save(); refresh(); });
   const age = h("input", { type: "checkbox" }); age.checked = !!S.age55; age.addEventListener("change", () => { S.age55 = age.checked; save(); refresh(); });
   const inferred = hcInferPays();
-  page.append(h("div", { class: "card" }, h("div", { class: "hd" }, h("div", {}, h("h2", {}, "Your inputs"), h("div", { class: "sub" }, "Premiums are per paycheck, from the enrollment portal. Saved in this browser only." + (inferred ? ` Pay periods are inferred from your ${hcPaychecks().from || "income"} deposits (${inferred} per year).` : "")))),
-    h("div", { class: "ledger-controls" }, h("label", { class: "muted", style: "display:flex;flex-direction:column;gap:4px;font-size:12px" }, "Coverage", tierSel), num("pays", "Paychecks per year"), num("premGold", "Gold $0 premium / paycheck", { step: "0.01" }), num("premQ", "HSA plan premium / paycheck", { step: "0.01" }),
+  page.append(h("div", { class: "card" }, h("div", { class: "hd" }, h("div", {}, h("h2", {}, "Your inputs"), h("div", { class: "sub" }, (S.premPaid ? "Your employer pays the premiums." : "Premiums are per paycheck, from the enrollment portal.") + " Saved in this browser only." + (inferred ? ` Pay periods are inferred from your ${hcPaychecks().from || "income"} deposits (${inferred} per year).` : "")))),
+    h("div", { class: "ledger-controls" }, h("label", { class: "muted", style: "display:flex;flex-direction:column;gap:4px;font-size:12px" }, "Coverage", tierSel), num("pays", "Paychecks per year"), ...(S.premPaid ? [] : [num("premGold", "Gold $0 premium / paycheck", { step: "0.01" }), num("premQ", "HSA plan premium / paycheck", { step: "0.01" })]),
       num("fed", "Federal tax bracket %"), num("state", "State tax %", { step: "0.01" }), num("bonus", "Annual bonus % of salary"), num("fica", "Payroll tax saved %", { step: "0.01" }), h("label", { class: "muted", style: "display:flex;gap:6px;align-items:center;font-size:12px" }, age, "Age 55+ (catch-up)"))));
   page.append(results);
 
@@ -83,7 +83,7 @@ function healthcare() {
   function build() {
     const wrap = h("div"), tier = S.tier, G = cfg.plans.gold, Q = cfg.plans.qhdhp, seed = cfg.hsa.employer_seed[tier], pays = Math.max(1, S.pays), rate = (S.fed + S.state + S.fica) / 100;
     const limit = cfg.hsa.irs_limit[tier] + (S.age55 ? cfg.hsa.catch_up_55 : 0), maxEmp = limit - seed, worst = Q.oop[tier] - seed;
-    const premDiffYr = (S.premGold - S.premQ) * pays, havePrem = S.premGold > 0 || S.premQ > 0;
+    const premDiffYr = (S.premGold - S.premQ) * pays, havePrem = !!S.premPaid || S.premGold > 0 || S.premQ > 0;
     const rows = cfg.scenarios.map(sc => { const g = hcMemberCost(G, tier, sc, cfg), q = hcMemberCost(Q, tier, sc, cfg); return { sc, g, q }; });
     const typical = rows.find(r => r.sc.name === "Typical") || rows[1], deductGap = Math.max(0, Q.deductible[tier] - seed), typicalGap = Math.max(0, typical.q.cost - seed);
 
@@ -116,7 +116,7 @@ function healthcare() {
       const qn = hcNetOutOfPocket(r.q.cost, seed, recAnnual, rate), need = (qn.net - r.g.cost + 0) / pays;
       return { name: r.sc.name, note: r.sc.note, gold: r.g.cost, q: r.q.cost, qNet: qn.net, diff: qn.net - r.g.cost, need };
     });
-    const premLine = havePrem ? `Premiums add ${fmt0(S.premGold * pays)} (Gold) vs ${fmt0(S.premQ * pays)} (HSA plan) a year, so the HSA plan is ${premDiffYr >= 0 ? fmt0(premDiffYr) + " cheaper" : fmt0(-premDiffYr) + " more expensive"} before any care.` : "Enter both premiums above to include them. Until then, the last column shows how much lower the Gold premium would have to be, per paycheck, for Gold to come out ahead.";
+    const premLine = S.premPaid ? "Your employer pays the premiums on both plans, so only what you pay for care and the HSA matter." : havePrem ? `Premiums add ${fmt0(S.premGold * pays)} (Gold) vs ${fmt0(S.premQ * pays)} (HSA plan) a year, so the HSA plan is ${premDiffYr >= 0 ? fmt0(premDiffYr) + " cheaper" : fmt0(-premDiffYr) + " more expensive"} before any care.` : "Enter both premiums above to include them. Until then, the last column shows how much lower the Gold premium would have to be, per paycheck, for Gold to come out ahead.";
     const tableCols = ["Year of care", "Gold $0 you pay", "HSA plan you pay", "HSA plan after seed + tax", "Net vs Gold", havePrem ? "Total with premiums" : "Gold wins only if its premium is"];
     const tbl = tableEl(tableCols, trs.map(r => [`${r.name}: ${r.note}`, fmt0(r.gold), fmt0(r.q), fmt0(r.qNet), (r.diff <= 0 ? "-" : "+") + fmt0(Math.abs(r.diff)), havePrem ? `${r.diff - premDiffYr <= 0 ? "HSA plan" : "Gold"} ahead by ${fmt0(Math.abs(r.diff - premDiffYr))}` : (r.need >= 0 ? "Gold is already cheaper" : fmt2(-r.need) + " cheaper than the HSA plan's")]), [1, 2, 3, 4, 5]);
     g.append(h("div", { class: "card span-12" }, h("div", { class: "hd" }, h("div", {}, h("h2", {}, "What each plan costs you in four kinds of year"), h("div", { class: "sub" }, "Out of pocket for care and prescriptions, using the plan grids and typical prices. " + premLine))), h("div", { class: "tablev", style: "max-height:none" }, tbl),
